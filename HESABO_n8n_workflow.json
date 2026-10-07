@@ -1,0 +1,1473 @@
+{
+  "name": "HESABO — Telegram Accounting Assistant (MVP)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "hesabo-100",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1400,
+        300
+      ],
+      "webhookId": "hesabo-telegram-trigger",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Telegram"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg1",
+              "name": "spreadsheetId",
+              "value": "YOUR_GOOGLE_SHEET_ID",
+              "type": "string"
+            },
+            {
+              "id": "cfg2",
+              "name": "geminiApiKey",
+              "value": "YOUR_GEMINI_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "cfg3",
+              "name": "geminiModel",
+              "value": "gemini-flash-latest",
+              "type": "string"
+            },
+            {
+              "id": "cfg4",
+              "name": "aiMode",
+              "value": "auto",
+              "type": "string"
+            },
+            {
+              "id": "cfg5",
+              "name": "allowRelink",
+              "value": "true",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "hesabo-101",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1180,
+        300
+      ],
+      "notes": "عدّل هنا: مفتاح Gemini، الموديل، وضع الـAI (auto/rules)، والسماح بإعادة ربط الرقم للتجربة."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Config').first().json.spreadsheetId }}/values:batchGet?ranges=Settings&ranges=Users&ranges=Customers&ranges=Products&ranges=Invoices&ranges=Payments&ranges=Quotations&ranges=Leads&ranges=Orders&ranges=Approvals&ranges=Conversations&ranges=Handoffs&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "hesabo-102",
+      "name": "Load Sheets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -960,
+        300
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "notes": "قراءة كل الشيتات في طلب واحد (أسرع بكتير من 12 قراءة)."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/* ===================================================================\n   HESABO — shared core for n8n Code nodes (Telegram + Google Sheets)\n   This block is embedded in BOTH \"Build AI Prompt\" and \"HESABO Engine\".\n   =================================================================== */\nconst DAY = 86400000;\nconst NOW = new Date();\nconst TODAY = NOW.toISOString().slice(0,10);\nconst N = v => { if (v===null||v===undefined||v==='') return 0; const x = typeof v==='number' ? v : parseFloat(String(v).replace(/[^\\d.\\-]/g,'')); return isNaN(x)?0:x; };\nconst S_ = v => (v===null||v===undefined) ? '' : String(v);\nconst fmtN = (n,d=0) => Number(n||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});\nconst fmtDate = d => new Date(d).toISOString().slice(0,10);\nconst addDays = (d,n) => new Date(new Date(d).getTime()+n*DAY);\nconst daysBetween = (a,b) => Math.round((new Date(b)-new Date(a))/DAY);\nconst AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];\nconst fmtDateAr = d => { const x = new Date(d); if (isNaN(x)) return S_(d); return `${x.getDate()} ${AR_MONTHS[x.getMonth()]} ${x.getFullYear()}`; };\nconst firstName = n => S_(n).trim().split(/\\s+/)[0]||'';\nconst sum = (arr,f) => arr.reduce((t,x)=>t+(f?f(x):x),0);\nconst byId = (arr,id) => arr.find(x=>x.id===id);\nconst esc = s => S_(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\nfunction norm(s){\n  return S_(s).toLowerCase()\n    .replace(/(\\d)[,،](\\d)/g,'$1$2')\n    .replace(/[ً-ْـ]/g,'')\n    .replace(/[أإآٱ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/ؤ/g,'و').replace(/ئ/g,'ي')\n    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))\n    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))\n    .replace(/[،,؟?!.:;()\\[\\]\"'«»]/g,' ')\n    .replace(/\\s+/g,' ').trim();\n}\nconst normPhone = p => { let d = S_(p).replace(/[٠-٩]/g, x => '٠١٢٣٤٥٦٧٨٩'.indexOf(x)).replace(/\\D/g,''); if (d.startsWith('00')) d = d.slice(2); if (d.startsWith('966')) d = d.slice(3); if (d.startsWith('0')) d = d.slice(1); if (d.length===9 && d.startsWith('5')) return '+966'+d; return d.length>=10 && d.length<=15 ? '+'+d : ''; };\nconst looksLikePhone = t => /^\\s*\\+?[\\d\\s\\-()]{9,18}\\s*$/.test(S_(t)) && !!normPhone(t);\n\n\n/* ---------- sheets loader: one batchGet call (\"Load Sheets\") or legacy per-sheet \"Read X\" nodes ---------- */\nconst SHEET_NAMES = ['Settings','Users','Customers','Products','Invoices','Payments','Quotations','Leads','Orders','Approvals','Conversations','Handoffs'];\nfunction makeRowsReader($){\n  let batch = null;\n  try { const j = $('Load Sheets').first().json; if (j && Array.isArray(j.valueRanges)) batch = j.valueRanges; } catch(e){}\n  if (batch){\n    const map = {};\n    batch.forEach((vr, i) => {\n      const name = SHEET_NAMES[i] || String(vr.range||'').split('!')[0].replace(/'/g,'');\n      const vals = vr.values || []; const hdr = (vals[0]||[]).map(h => String(h).trim());\n      map[name] = vals.slice(1).filter(r => r.some(v => String(v).trim() !== '')).map(r => { const o = {}; hdr.forEach((h, k) => { if (h) o[h] = r[k] === undefined ? '' : r[k]; }); return o; });\n    });\n    return name => map[String(name).replace(/^Read /,'')] || [];\n  }\n  return name => { try { return $(name).all().map(i => i.json); } catch(e){ return []; } };\n}\n\n/* ---------- load the sheets into a typed DB ---------- */\nfunction loadDB(sheets){\n  const rows = n => (sheets[n]||[]).filter(r => r && Object.values(r).some(v => v!==''&&v!==null&&v!==undefined));\n  const settings = {}; rows('Settings').forEach(r => settings[S_(r.key).trim()] = S_(r.value).trim());\n  const bool = k => /^(true|1|yes|نعم)$/i.test(S_(settings[k]));\n  const db = {\n    settings: { companyName: settings.companyName||'الشركة', botName: settings.botName||'مساعد حسابو', currency: settings.currency||'ريال', vat: N(settings.vat)||15, overdueDays: N(settings.overdueDays)||30, approvalThreshold: N(settings.approvalThreshold)||20000, followUpDays: N(settings.followUpDays)||7,\n      approvals: { CREATE_INVOICE: bool('approval_CREATE_INVOICE'), RECORD_PAYMENT: bool('approval_RECORD_PAYMENT'), SEND_QUOTATION: bool('approval_SEND_QUOTATION'), CREATE_CUSTOMER: bool('approval_CREATE_CUSTOMER') } },\n    users: rows('Users').map(r => ({ id:S_(r.id), name:S_(r.name), role:S_(r.role), phone:normPhone(r.phone), title:S_(r.title), telegram_id:S_(r.telegram_id) })),\n    customers: rows('Customers').map(r => ({ id:S_(r.id), company:S_(r.company), core:S_(r.core), name:S_(r.contact_name), phone:normPhone(r.phone), vat:S_(r.vat), city:S_(r.city), creditLimit:N(r.credit_limit), status:S_(r.status)||'active', salesRep:S_(r.sales_rep), telegram_id:S_(r.telegram_id) })),\n    products: rows('Products').map(r => ({ id:S_(r.id), name:S_(r.name), cat:S_(r.category), unit:S_(r.unit), price:N(r.price), vat:N(r.vat)||15, keys:S_(r.keywords).split(/[,،]/).map(x=>x.trim()).filter(x=>x && !x.startsWith('(')) })),\n    invoices: rows('Invoices').map(r => ({ id:S_(r.id), customerId:S_(r.customer_id), date:S_(r.date), dueDate:S_(r.due_date), project:S_(r.project), items:S_(r.items), subtotal:N(r.subtotal), vat:N(r.vat), amount:N(r.amount), paid:N(r.paid), remaining:N(r.remaining), status:S_(r.status), createdBy:S_(r.created_by) })),\n    payments: rows('Payments').map(r => ({ id:S_(r.id), customerId:S_(r.customer_id), invoiceId:S_(r.invoice_id), date:S_(r.date), amount:N(r.amount), method:S_(r.method), reference:S_(r.reference), recordedBy:S_(r.recorded_by) })),\n    quotations: rows('Quotations').map(r => ({ id:S_(r.id), customerId:S_(r.customer_id), leadId:S_(r.lead_id), contactPhone:S_(r.contact_phone), date:S_(r.date), validUntil:S_(r.valid_until), items:S_(r.items), subtotal:N(r.subtotal), vat:N(r.vat), total:N(r.total), status:S_(r.status), location:S_(r.location), thickness:S_(r.thickness), notes:S_(r.notes), requestedVia:S_(r.requested_via), salesRep:S_(r.sales_rep), followUps:N(r.follow_ups), lastFollowUp:S_(r.last_follow_up) })),\n    leads: rows('Leads').map(r => ({ id:S_(r.id), date:S_(r.date), name:S_(r.name), phone:S_(r.phone), company:S_(r.company), service:S_(r.service), serviceName:S_(r.service_name), location:S_(r.location), qty:N(r.qty), unit:S_(r.unit), thickness:S_(r.thickness), status:S_(r.status), source:S_(r.source), assignedTo:S_(r.assigned_to), telegram_id:S_(r.telegram_id) })),\n    orders: rows('Orders').map(r => ({ id:S_(r.id), quotationId:S_(r.quotation_id), customerId:S_(r.customer_id), date:S_(r.date), total:N(r.total), status:S_(r.status) })),\n    approvals: rows('Approvals').map(r => ({ id:S_(r.id), type:S_(r.type), payload:safeJSON(r.payload,{}), requestedBy:S_(r.requested_by), requestedByChat:S_(r.requested_by_chat), requesterRole:S_(r.requester_role), approverRole:S_(r.approver_role), requestedAt:S_(r.requested_at), status:S_(r.status), decidedBy:S_(r.decided_by), decidedAt:S_(r.decided_at), note:S_(r.note), result:S_(r.result) })),\n    conversations: rows('Conversations').map(r => ({ id:S_(r.id), phone:S_(r.phone), role:S_(r.role), name:S_(r.name), context:safeJSON(r.context,null), history:safeJSON(r.history,[]), lastMessage:S_(r.last_message), updatedAt:S_(r.updated_at) })),\n    handoffs: rows('Handoffs').map(r => ({ id:S_(r.id), ts:S_(r.ts), chatId:S_(r.chat_id), actor:S_(r.actor), role:S_(r.role), message:S_(r.message), reason:S_(r.reason), status:S_(r.status), reply:S_(r.reply) })),\n  };\n  db.productById = id => db.products.find(p=>p.id===id);\n  db.expandItems = str => S_(str).split(';').map(x=>x.trim()).filter(Boolean).map(x => { const m = x.match(/^(P-\\d+)x([\\d.]+)$/i); if (!m) return { productId:'', name:x, unit:'', qty:1, price:0, total:0 }; const p = db.productById(m[1].toUpperCase()); const qty = N(m[2]); return { productId:m[1].toUpperCase(), name:p?p.name:m[1], unit:p?p.unit:'', qty, price:p?p.price:0, total:qty*(p?p.price:0) }; });\n  db.nextId = (prefix, arr, start) => { let max = start-1; arr.forEach(x => { const m = S_(x.id).match(/(\\d+)$/); if (m && S_(x.id).startsWith(prefix)) max = Math.max(max, +m[1]); }); return prefix + (max+1); };\n  return db;\n}\nfunction safeJSON(v, d){ if (v===null||v===undefined||v==='') return d; if (typeof v==='object') return v; try { return JSON.parse(v); } catch(e){ return d; } }\nfunction invoiceStatus(inv){ if (inv.remaining<=0) return 'paid'; const overdue = inv.dueDate < TODAY; if (inv.paid>0) return overdue?'overdue':'partial'; return overdue?'overdue':'unpaid'; }\nconst STATUS_AR = { paid:'مدفوعة', partial:'مدفوعة جزئياً', unpaid:'غير مدفوعة', overdue:'متأخرة', draft:'مسودة', sent:'مرسل', accepted:'مقبول', rejected:'مرفوض', expired:'منتهي', pending_approval:'بانتظار الاعتماد', new:'جديد', contacted:'تم التواصل', quoted:'تم التسعير', won:'تم الفوز', lost:'خسارة', open:'مفتوح', in_progress:'قيد التنفيذ', done:'منتهي', pending:'معلق', approved:'معتمد', resolved:'تم الحل', active:'نشط', blocked:'موقوف' };\nconst ROLE_AR = { customer:'عميل', sales:'مبيعات', accountant:'محاسب', admin:'مدير', unknown:'رقم غير معروف' };\nconst STAFF = r => r==='sales'||r==='accountant'||r==='admin';\nfunction customerInvoices(db,cid){ return db.invoices.filter(i=>i.customerId===cid && i.status!=='draft'); }\nfunction customerBalance(db,cid){ const inv = customerInvoices(db,cid); return { total:sum(inv,i=>i.amount), paid:sum(inv,i=>i.paid), remaining:sum(inv,i=>i.remaining), overdue:sum(inv.filter(i=>invoiceStatus(i)==='overdue'),i=>i.remaining), count:inv.length }; }\nfunction customerName(db,cid){ const c = byId(db.customers,cid); return c ? c.company : (cid||'—'); }\n\n/* ---------- identity: who is this Telegram chat? ---------- */\nfunction resolveActor(db, chatId, from){\n  const cid = S_(chatId);\n  const conv = db.conversations.find(c => c.id===cid) || null;\n  const u = db.users.find(x => x.telegram_id===cid); if (u) return { role:u.role, name:u.name, id:u.id, phone:u.phone, chatId:cid, user:u, conv, linked:true };\n  const c = db.customers.find(x => x.telegram_id===cid); if (c) return { role:'customer', name:c.name, id:c.id, phone:c.phone, chatId:cid, customer:c, conv, linked:true };\n  if (conv && conv.phone){ // linked in an earlier turn (row not yet visible) — fall back to the conversation record\n    const u2 = db.users.find(x => x.phone===normPhone(conv.phone)); if (u2) return { role:u2.role, name:u2.name, id:u2.id, phone:u2.phone, chatId:cid, user:u2, conv, linked:true };\n    const c2 = db.customers.find(x => x.phone===normPhone(conv.phone)); if (c2) return { role:'customer', name:c2.name, id:c2.id, phone:c2.phone, chatId:cid, customer:c2, conv, linked:true };\n  }\n  const nm = from ? [from.first_name, from.last_name].filter(Boolean).join(' ') : '';\n  return { role:'unknown', name: nm || 'رقم غير معروف', id:null, phone:'', chatId:cid, conv, linked:false, tgName:nm };\n}\n\n/* ---------- catalog matching & entity extraction ---------- */\nconst CITIES = ['الرياض','جدة','المدينة المنورة','مكة','الدمام','الخبر','القصيم','تبوك','أبها','جازان','ينبع','الطائف','حائل','الجبيل','نجران','الأحساء'];\nconst CITY_N = CITIES.map(c => ({ n:norm(c), name:c }));\nfunction matchProduct(db, text){\n  const n = norm(text); if (!n) return null;\n  if (/كور|coring|تخريم|ثقب/.test(n)){ if (/\\b200\\b/.test(n)) return db.productById('P-06'); if (/\\b150\\b/.test(n)) return db.productById('P-05'); return db.productById('P-04'); }\n  if (/ارضي|floor/.test(n)) return db.productById('P-03');\n  if (/سلك|واير|wire/.test(n)) return db.productById('P-02');\n  for (const p of db.products){ for (const k of p.keys){ if (k && n.includes(norm(k))) return p; } }\n  const m = n.match(/^p-?(\\d\\d)$/); if (m) return db.productById('P-'+m[1]);\n  return null;\n}\nfunction unitNorm(u){ u = norm(u||''); if (/مربع|م2|م²|²/.test(u)) return 'م²'; if (/مكعب|م3|م³|³/.test(u)) return 'م³'; if (/نقط|ثقب|ثقوب|فتح|كور/.test(u)) return 'نقطة'; if (/عدد|قطع|حب/.test(u)) return 'عدد'; if (/متر|م ?ط|^م$/.test(u)) return 'م.ط'; return u||null; }\nfunction findCustomerInText(db, n){\n  let best = null;\n  for (const c of db.customers){\n    const core = norm(c.core); if (core.length>=3 && n.includes(core) && (!best || core.length>best.len)) best = { c, len:core.length };\n    const nm = norm(c.name).split(' '); if (nm.length===2 && n.includes(nm[0]) && n.includes(nm[1]) && (!best || 99>best.len)) best = { c, len:99 };\n    const idm = n.match(/c-?0*(\\d{1,3})(?=\\s|$)/); if (idm && c.id==='C-'+String(idm[1]).padStart(3,'0')) return c;\n  }\n  return best ? best.c : null;\n}\nfunction extractEntities(db, raw){\n  const n = norm(raw); const e = {}; let m;\n  if ((m = n.match(/(?:فاتور[هة]|فواتير|inv)[\\s#:\\-]*(?:رقم\\s*)?#?\\s*(\\d{3,6})/))) e.invoice_no = +m[1]; else if ((m = n.match(/inv[\\s\\-]?(\\d{3,6})/))) e.invoice_no = +m[1];\n  if ((m = n.match(/(?:عرض (?:ال)?سعر|عرض|qt)[\\s#:\\-]*(?:رقم\\s*)?#?\\s*(\\d{4})(?=\\s|$)/))) e.quotation_no = +m[1]; else if ((m = n.match(/qt[\\s\\-]?(\\d{4})/))) e.quotation_no = +m[1];\n  if ((m = n.match(/(ap|ho)[\\s\\-]?(\\d{1,5})(?=\\s|$)/))) e.ref_id = m[1].toUpperCase()+'-'+m[2];\n  if ((m = n.match(/(\\d+(?:\\.\\d+)?)\\s*(?:الف|ألف|k)(?=\\s|$)/))) e.amount = Math.round(+m[1]*1000); else if ((m = n.match(/(\\d{2,9}(?:\\.\\d+)?)\\s*(?:ريال|ر\\s?س|sar|جنيه|درهم)/))) e.amount = +m[1];\n  if ((m = n.match(/(\\d+(?:\\.\\d+)?)\\s*(متر مربع|متر مكعب|متر طولي|م\\.?ط|م ?2|م²|م ?3|م³|متر|م(?=\\s|$)|نقطه|نقاط|نقط|عدد|قطعه|قطع|ثقب|ثقوب|فتحه|فتحات|حبه|كور(?=\\s|$))/))) { e.quantity = +m[1]; e.unit = unitNorm(m[2]); }\n  if ((m = n.match(/(?:سمك|سماكه|تخانه)\\s*(?:ال)?(?:خرسانه|حيطه|بلاطه|جدار)?\\s*(\\d+(?:\\.\\d+)?)\\s*(سم|مم|cm|mm|م|متر)?/))) { e.thickness_cm = (m[2]==='مم'||m[2]==='mm') ? +m[1]/10 : (m[2]==='م'||m[2]==='متر') ? +m[1]*100 : +m[1]; }\n  else if ((m = n.match(/(\\d+(?:\\.\\d+)?)\\s*(?:سم|cm)(?=\\s|$)/))) e.thickness_cm = +m[1];\n  for (const c of CITY_N){ if (n.includes(c.n)) { e.location = c.name; break; } }\n  if (!e.location && (m = n.match(/(?:في موقع|بموقع|موقع|الموقع|مكان|في|فى)\\s+([؀-ۿ]{3,}(?:\\s[؀-ۿ]{2,})?)/))) { if (!/^(الفاتور|الحساب|عرض|السعر|الشرك|النظام|الموقع)/.test(m[1])) e.location_text = m[1]; }\n  if ((m = n.match(/(\\d+)\\s*(?:يوم|ايام)/))) e.days = +m[1];\n  if (/اسبوع|week/.test(n)) e.period='week'; else if (/شهر|month/.test(n)) e.period='month';\n  if (/كاش|نقدي|نقدا|cash/.test(n)) e.payment_method='نقدي'; else if (/تحويل|حواله|حولت|بنك|transfer|iban|ايبان/.test(n)) e.payment_method='تحويل بنكي'; else if (/شيك|cheque|check/.test(n)) e.payment_method='شيك';\n  if ((m = n.match(/(?:رقم (?:مرجع|المرجع|التحويل|العمليه|الحواله)|مرجع|ref(?:erence)?)[:\\s#]*([a-z0-9\\-]{4,})/))) e.reference = m[1].toUpperCase();\n  const ph = normPhone((S_(raw).match(/(?:\\+?966|0)?\\s?5\\d{8}/)||[''])[0]); if (ph) e.phone = ph;\n  const prod = matchProduct(db, n); if (prod) e.service = prod.id;\n  const cust = findCustomerInText(db, n); if (cust) e.customer_id = cust.id;\n  if ((m = S_(raw).match(/(شركة|مؤسسة|شركه|مؤسسه)\\s+[؀-ۿ]+(?:\\s[؀-ۿ]+){0,3}/))) e.company_text = m[0].replace(/\\s+(اسم|المسؤول|تليفون|رقم|جوال|موبايل|عليه|عليها|رصيد|كام).*$/,'');\n  if ((m = S_(raw).match(/(?:اسمه|اسمها|اسم المسؤول|المسؤول|الاسم|اسم)\\s*:?\\s*([؀-ۿ]+(?:\\s[؀-ۿ]+)?)/))) e.person_name = m[1];\n  const nums = (n.match(/(?<![\\w-])\\d+(?:\\.\\d+)?(?![\\w])/g)||[]).map(Number); if (nums.length) e.numbers = nums;\n  return e;\n}\n\n/* ---------- intents ---------- */\nconst INTENTS = {\n  GREETING:'greeting / small talk', THANKS:'thanks', HELP:'asks what the assistant can do',\n  CUSTOMER_BALANCE:'how much is owed / current balance (عليا كام؟ رصيدي؟ شركة X عليها كام؟)',\n  LAST_INVOICE:'send the last / latest invoice', INVOICE_STATUS:'is invoice N paid? status of a specific invoice number', INVOICE_DUE_DATE:'due date of an invoice', LIST_INVOICES:'list invoices (all / open / unpaid)',\n  PAYMENT_SEARCH:'what was paid / last payment / list payments', RECORD_PAYMENT:'report or record a payment made (حولت 5000، سجل دفعة)', STATEMENT:'account statement',\n  CREATE_QUOTATION:'request a quotation / price for a service', QUOTATION_STATUS:'status of an existing quotation', OPEN_QUOTATIONS:'staff: list open / pending quotations', FOLLOW_UP:'staff: follow up customers who did not answer quotations', SALES_REPORT:'staff: sales report for week / month',\n  WHO_OWES:'staff: which customers owe money / overdue more than N days', CUSTOMER_SEARCH:'staff: find customer details', CREATE_CUSTOMER:'staff: add a new customer', CREATE_INVOICE:'staff: create an invoice for a customer', CREATE_LEAD:'staff: register a new lead',\n  APPROVE:'staff: approve a pending request by its id (اعتمد AP-3)', REJECT:'staff: reject a pending request by its id (ارفض AP-3)', LIST_APPROVALS:'staff: list pending approvals', HUMAN_REPLY:'admin: reply to a handoff (رد HO-2 النص)',\n  CONFIRM:'yes / confirm / ok', DENY:'no / not correct', CANCEL:'cancel the current request', FLOW_ANSWER:'answers a question the assistant asked in an active flow', UNKNOWN:'anything else / unclear',\n};\nconst INTENT_AR = { GREETING:'تحية', THANKS:'شكر', HELP:'مساعدة', CUSTOMER_BALANCE:'رصيد العميل', LAST_INVOICE:'آخر فاتورة', INVOICE_STATUS:'حالة فاتورة', INVOICE_DUE_DATE:'موعد استحقاق', LIST_INVOICES:'قائمة الفواتير', PAYMENT_SEARCH:'بحث مدفوعات', RECORD_PAYMENT:'تسجيل دفعة', STATEMENT:'كشف حساب', CREATE_QUOTATION:'طلب عرض سعر', QUOTATION_STATUS:'حالة عرض سعر', OPEN_QUOTATIONS:'العروض المفتوحة', FOLLOW_UP:'متابعة العروض', SALES_REPORT:'تقرير مبيعات', WHO_OWES:'المتأخرين بالسداد', CUSTOMER_SEARCH:'بحث عميل', CREATE_CUSTOMER:'إضافة عميل', CREATE_INVOICE:'إنشاء فاتورة', CREATE_LEAD:'تسجيل فرصة', APPROVE:'اعتماد', REJECT:'رفض طلب', LIST_APPROVALS:'الطلبات المعلقة', HUMAN_REPLY:'رد بشري', CONFIRM:'تأكيد', DENY:'رفض', CANCEL:'إلغاء', FLOW_ANSWER:'إجابة', UNKNOWN:'غير مفهوم' };\nconst COMMON = ['GREETING','THANKS','HELP','CONFIRM','DENY','CANCEL','FLOW_ANSWER','UNKNOWN'];\nconst PERMS = {\n  customer:[...COMMON,'CUSTOMER_BALANCE','LAST_INVOICE','INVOICE_STATUS','INVOICE_DUE_DATE','LIST_INVOICES','PAYMENT_SEARCH','RECORD_PAYMENT','STATEMENT','CREATE_QUOTATION','QUOTATION_STATUS'],\n  sales:[...COMMON,'CUSTOMER_SEARCH','CREATE_CUSTOMER','CUSTOMER_BALANCE','CREATE_LEAD','CREATE_QUOTATION','QUOTATION_STATUS','OPEN_QUOTATIONS','FOLLOW_UP','SALES_REPORT'],\n  accountant:[...COMMON,'CUSTOMER_SEARCH','CUSTOMER_BALANCE','LAST_INVOICE','INVOICE_STATUS','INVOICE_DUE_DATE','LIST_INVOICES','PAYMENT_SEARCH','RECORD_PAYMENT','STATEMENT','CREATE_INVOICE','WHO_OWES','APPROVE','REJECT','LIST_APPROVALS'],\n  admin: Object.keys(INTENTS),\n  unknown:[...COMMON,'CREATE_QUOTATION'],\n};\nconst SENSITIVE = ['CREATE_INVOICE','RECORD_PAYMENT','CREATE_CUSTOMER'];\n\n/* ---------- rule-based NLU (offline fallback) ---------- */\nfunction ruleNLU(db, raw, ctx){\n  const n = norm(raw); const e = extractEntities(db, raw);\n  const R = (intent,conf,why) => ({ intent, confidence:conf, entities:e, engine:'rules', why });\n  const words = n.split(' ').length;\n  if (/^(الغي|الغاء|كنسل|cancel|خلاص مش عايز|مش عايز|بطل|وقف)/.test(n)) return R('CANCEL',.95,'cancel');\n  if (/^(ايوه|ايوا|اه|اها|نعم|تمام|موافق|اوك|اوكي|ok|okay|yes|اكيد|ماشي|صح|تاكيد|اعتمد الطلب|كده تمام|تمام كده|y)(?=\\s|$)/.test(n) && words<=3) return R('CONFIRM',.95,'confirm');\n  if (/^(لا|لأ|لاء|no|مش صح|غلط|مش كده|لا غلط)(?=\\s|$)/.test(n) && words<=3) return R('DENY',.95,'deny');\n  if (/^(اعتمد|اعتماد|وافق|موافقه علي|approve)(?=\\s|$)/.test(n) && e.ref_id) return R('APPROVE',.95,'approve');\n  if (/^(ارفض|رفض|reject)(?=\\s|$)/.test(n) && e.ref_id) return R('REJECT',.95,'reject');\n  if (/^(رد|reply)(?=\\s|$)/.test(n) && e.ref_id && /^ho-/i.test(e.ref_id)) return R('HUMAN_REPLY',.95,'human reply');\n  if (/(الطلبات المعلقه|المعلق|الموافقات|طلبات الاعتماد|pending approvals|ايه المعلق|فيه حاجه مستنيه)/.test(n)) return R('LIST_APPROVALS',.9,'approvals');\n  if (ctx && ctx.flow){ const newReq = /(عليا كام|رصيد|اخر فاتوره|كشف حساب|عرض سعر|تقرير|مين عليه)/.test(n); if (!newReq) return R('FLOW_ANSWER',.85,'active flow'); }\n  if (/^(سلام|السلام عليكم|اهلا|اهلين|هاي|هلا|مرحبا|صباح الخير|صباح النور|مساء الخير|مساء النور|hi|hello|hey|السلام|ازيك|ازيكم|كيفك|كيف الحال|عامل ايه)/.test(n) && words<=4) return R('GREETING',.95,'greeting');\n  if (/^(شكرا|تسلم|مشكور|thanks|thank you|يعطيك العافيه|الله يعطيك العافيه)/.test(n) && words<=4) return R('THANKS',.95,'thanks');\n  if (/(مساعده|help|تقدر تعمل ايه|ايه اللي تقدر|الاوامر|ممكن اعمل ايه|بتعمل ايه|ازاي استخدم|ايه الخدمات اللي)/.test(n)) return R('HELP',.9,'help');\n  if (/(مين عليه|مين عليهم|مين اللي عليه|العملاء اللي عليهم|المتاخرين|متاخر في السداد|overdue|الديون|التحصيل|المديونيات|مستحقات متاخره|اكتر من \\d+ يوم|فاتت الاستحقاق|عدت الاستحقاق|مين لسه ما دفعش|مين ما دفعش)/.test(n)) return R('WHO_OWES',.9,'who owes');\n  if (/(اعمل متابعه|متابعه للعملاء|follow ?up|فكر العملاء|ذكر العملاء|ابعت تذكير|تابع العملاء|متابعه العروض|اللي ما ردوش|ما ردوش)/.test(n)) return R('FOLLOW_UP',.9,'follow up');\n  if (/(تقرير المبيعات|تقرير الاسبوع|تقرير الشهر|sales report|ملخص المبيعات|المبيعات هذا الاسبوع|المبيعات الاسبوع|المبيعات الشهر|بعنا كام|جهزلي تقرير|تقرير مبيعات|ايه اخبار المبيعات)/.test(n)) return R('SALES_REPORT',.9,'sales report');\n  if (/(عروض الاسعار المفتوحه|العروض المفتوحه|كل عروض الاسعار|العروض المعلقه|open quotations|العروض اللي لسه|عروض السعر اللي لسه|عروض الاسعار المعلقه|العروض اللي منتظره|هاتلي كل عروض)/.test(n)) return R('OPEN_QUOTATIONS',.9,'open quotes');\n  if (e.quotation_no || /(فين عرض السعر|حاله عرض السعر|حاله العرض|عرض السعر بتاعي|عرضي وصل|العرض اتوافق|العرض اتقبل|عرض السعر اتقبل|اتبعت العرض|العرض اتبعت|رد علي العرض|العرض وصل|هتبعتوا العرض امتي|العرض هيتبعت امتي|فين العرض|صار علي عرض|صار علي العرض|وصلني عرض|العرض جاهز|عرض السعر جاهز)/.test(n)) return R('QUOTATION_STATUS',.85,'quotation status');\n  if (/(ضيف عميل|اضف عميل|سجل عميل|add customer|new customer|انشئ عميل|ضيفلي عميل|سجلي عميل|اضيف عميل)/.test(n)) return R('CREATE_CUSTOMER',.9,'create customer');\n  if (/(سجل ليد|\\blead\\b|عميل محتمل|ضيف ليد|فرصه جديده|سجل فرصه|عميل مهتم|سجله كفرصه)/.test(n)) return R('CREATE_LEAD',.85,'create lead');\n  if (/(عرض سعر|عرض اسعار|عروض اسعار|تسعير|تسعيره|quotation|quote|(?<!مديون |عليا |عليه |عليها )(?<![؀-ۿ])بكام(?![؀-ۿ])|كام سعر|سعر ال|اسعار ال|price|كام تكلفه|تكلفه|كم سعر|كم يكلف|(?<![؀-ۿ])بكم(?![؀-ۿ]))/.test(n) || (e.service && /(محتاج|عايز|عاوز|احتاج|ابغي|ابي|ابغى|نبي|ممكن|اطلب|طلب|عندنا شغل|عندي شغل|نحتاج)/.test(n))) return R('CREATE_QUOTATION',.88,'quotation request');\n  if (/(اعمل فاتوره|اعملي فاتوره|انشئ فاتوره|اصدر فاتوره|فاتوره جديده|create invoice|اعمل فاتور|سجل فاتوره|اطلع فاتوره)/.test(n)) return R('CREATE_INVOICE',.9,'create invoice');\n  if (/(عميل جديد)/.test(n)) return R('CREATE_CUSTOMER',.7,'new customer words');\n  if (/(دور علي عميل|ابحث عن عميل|بيانات عميل|بيانات شركه|رقم عميل|تليفون عميل|search customer|عميل اسمه|فين عميل|هات بيانات|رقم شركه|تليفون شركه|بيانات ال)/.test(n)) return R('CUSTOMER_SEARCH',.85,'customer search');\n  if (/(كشف حساب|كشف الحساب|statement|اعمل كشف|ابعت كشف|كشف حسابي|هات كشف)/.test(n)) return R('STATEMENT',.92,'statement');\n  if (/(موعد استحقاق|موعد الاستحقاق|استحقاق|تاريخ الاستحقاق|due date|تستحق|يستحق|امتي الدفع|اخر ميعاد|اخر موعد|ميعاد الدفع|امتي اسدد|امتي السداد|متي اسدد|متي السداد)/.test(n)) return R('INVOICE_DUE_DATE',.88,'due date');\n  if (/(اخر فاتوره|last invoice|اخر فاتور|هات الفاتوره الاخيره|الفاتوره الاخيره|اخر فاتورتي)/.test(n)) return R('LAST_INVOICE',.92,'last invoice');\n  if (e.invoice_no && !/((?<!ات)دفعت|حولت|سجل دفعه)/.test(n)) return R('INVOICE_STATUS',.88,'invoice number');\n  if (/(الفاتوره اتدفعت|اتدفعت|اتسددت|حاله الفاتوره|الفاتوره مدفوعه|status of invoice|invoice status|الفاتوره دي)/.test(n) && !/((?<!ات)دفعت|حولت)/.test(n)) return R('INVOICE_STATUS',.8,'invoice status words');\n  if (/(فواتيري|الفواتير|كل الفواتير|هات الفواتير|فواتير مفتوحه|الفواتير المفتوحه|فواتير غير مدفوعه|invoices|عندي فواتير|ايه الفواتير|فواتير ال|فواتير)/.test(n)) return R('LIST_INVOICES',.85,'list invoices');\n  const payVerb = /(سجل دفعه|سجلي دفعه|اضف دفعه|record payment|تم التحويل|حولت|حولتلكم|دفعتلكم|سددت|(?<!ات)دفعت|ادفع|عايز ادفع|هدفع|هحول)/.test(n);\n  const paySearch = /(اخر دفعه|مدفوعات|دفعاتي|ايه اللي اتدفع|كام دفعت|دفعت كام|payments|اخر تحويل|التحويلات|كام اللي اتدفع|اللي اتدفع|دفعاتنا|هات المدفوعات|سجل الدفعات|الدفعات)/.test(n);\n  if (payVerb && (e.amount || (e.numbers && e.numbers.some(x=>x>=50)) || /سجل|اضف|record|ادفع|عايز ادفع|هدفع|هحول/.test(n))) { if (!e.amount && e.numbers){ const c = e.numbers.filter(x=>x!==e.invoice_no && x>=50); if (c.length) e.amount = Math.max(...c); } return R('RECORD_PAYMENT',.88,'payment'); }\n  if (paySearch || (/دفع/.test(n) && /كام|امتي|ايه/.test(n))) return R('PAYMENT_SEARCH',.85,'payment search');\n  if (/(عليا كام|عليه كام|عليها كام|علي كام|كام عليا|كام عليه|رصيد|الرصيد|المتبقي|المستحق|باقي عليا|كم علي|كم المتبقي|balance|outstanding|اجمالي المستحق|حسابي كام|كام حسابي|عندكم كام|كام ليكم|ليكم كام|مديون بكام|عليا فلوس|عليه فلوس|عليها فلوس|كم باقي|فاضل عليا|فاضل كام|الباقي علي|كم المبلغ|المبلغ الباقي|كم عليه|كم عليها|عليا ايه|ايه اللي عليا)/.test(n)) return R('CUSTOMER_BALANCE',.9,'balance');\n  if (e.customer_id && /(عميل|شركه|مؤسسه)/.test(n)) return R('CUSTOMER_SEARCH',.6,'customer name only');\n  return R('UNKNOWN',.3,'no pattern');\n}\n\n/* ---------- prompt for Gemini ---------- */\nfunction buildAIPrompt(db, raw, actor, ctx, history){\n  const roleDesc = { customer:'a registered customer of the company', sales:'a sales representative (staff)', accountant:'an accountant (staff)', admin:'the company admin / pricing manager (staff)', unknown:'an unknown user, not registered' }[actor.role];\n  const intentLines = Object.entries(INTENTS).map(([k,v]) => `- ${k}: ${v}`).join('\\n');\n  const services = db.products.map(p => `${p.id} ${p.name} (${p.unit})`).join('; ');\n  const hist = (history||[]).slice(-6).map(m => (m.dir==='out' ? 'USER: ' : 'ASSISTANT: ') + S_(m.text).slice(0,200)).join('\\n');\n  const flowTxt = ctx && ctx.flow ? JSON.stringify({ flow:ctx.flow, filled:ctx.slots, missing:ctx.missing, awaiting_confirmation:!!ctx.confirming }) : 'none';\n  return `You are the NLU (intent detection) layer of \"HESABO\", a Telegram/WhatsApp assistant connected to the accounting system of a concrete cutting / coring / GPR scanning contractor in Saudi Arabia. Users write in Arabic (Egyptian or Gulf dialect) or English.\nYour ONLY job: classify the LAST user message into one intent and extract entities. Never compute balances, never invent data.\n\nSender role: ${actor.role} (${roleDesc}). Sender name: ${actor.name}.${actor.customer ? ' Registered company: '+actor.customer.company : ''}\nKnown customer companies (staff may refer to them): ${db.customers.slice(0,12).map(c=>c.company).join(' | ')} ... (${db.customers.length} total; put the name the user wrote in customer_name)\nServices catalog: ${services}\nActive flow (the assistant is collecting information): ${flowTxt}\nRules for an active flow: if the message answers a missing slot, set intent \"FLOW_ANSWER\" and put the values in flow_answer using the slot names in \"missing\". If awaiting_confirmation and the user agrees (نعم/أيوه/تمام/ok) → \"CONFIRM\"; disagrees → \"DENY\"; wants to stop → \"CANCEL\". If the message is clearly a NEW different request, classify it normally.\nApproval commands: \"اعتمد AP-3\" → APPROVE with ref_id \"AP-3\"; \"ارفض AP-3 السبب\" → REJECT; \"رد HO-2 النص\" → HUMAN_REPLY with ref_id \"HO-2\".\n\nRecent conversation (USER = sender, ASSISTANT = bot):\n${hist || '(none)'}\n\nIntents:\n${intentLines}\n\nReply with ONLY one JSON object, no prose, no markdown:\n{\"intent\": \"<INTENT>\", \"confidence\": <0..1>, \"entities\": {\"customer_name\": string|null, \"invoice_no\": number|null, \"quotation_no\": number|null, \"ref_id\": string|null, \"amount\": number|null, \"service\": string|null (a product id like \"P-04\" when it matches the catalog, else the words used), \"quantity\": number|null, \"unit\": string|null, \"location\": string|null, \"thickness_cm\": number|null, \"payment_method\": \"نقدي\"|\"تحويل بنكي\"|\"شيك\"|null, \"reference\": string|null, \"days\": number|null, \"period\": \"week\"|\"month\"|null, \"person_name\": string|null, \"company_text\": string|null, \"phone\": string|null, \"invoice_filter\": \"open\"|\"all\"|null, \"reply_text\": string|null}, \"flow_answer\": {\"<slot>\": value} | null}\n\nLAST USER MESSAGE: \"\"\"${S_(raw).slice(0,600)}\"\"\"`;\n}\n/* merge an AI answer with rule extraction */\nfunction mergeAI(db, raw, ai){\n  const out = ai || {}; const intent = INTENTS[out.intent] ? out.intent : 'UNKNOWN';\n  const ents = extractEntities(db, raw); const a = out.entities || {};\n  for (const [k,v] of Object.entries(a)){ if (v!==null && v!==undefined && v!=='') ents[k] = v; }\n  if (a.service){ const p = matchProduct(db, String(a.service)); if (p) ents.service = p.id; }\n  if (a.customer_name && !ents.customer_id){ const c = findCustomerInText(db, norm(a.customer_name)); if (c) ents.customer_id = c.id; else ents.customer_name = a.customer_name; }\n  if (a.unit) ents.unit = unitNorm(a.unit)||a.unit;\n  if (a.phone){ const p = normPhone(a.phone); if (p) ents.phone = p; }\n  if (a.ref_id) ents.ref_id = String(a.ref_id).toUpperCase().replace(/\\s+/g,'').replace(/^(AP|HO)(\\d)/,'$1-$2');\n  return { intent, confidence: Math.max(0,Math.min(1,+out.confidence||.7)), entities:ents, engine:'ai', flow_answer: out.flow_answer||null };\n}\n\n\n/* ===================================================================\n   HESABO — Code node A: \"Build AI Prompt\"\n   Reads the Telegram update + the sheets, identifies the sender and\n   builds the Gemini request body. Nothing is written here.\n   =================================================================== */\nconst rows = makeRowsReader($);\nconst upd = $('Telegram Trigger').first().json;\nconst msg = upd.message || upd.edited_message || {};\nconst text = S_(msg.text || msg.caption || '');\nconst chatId = S_(msg.chat && msg.chat.id);\nconst cfg = $('Config').first().json;\nconst db = loadDB({ Settings: rows('Read Settings'), Users: rows('Read Users'), Customers: rows('Read Customers'), Products: rows('Read Products'), Conversations: rows('Read Conversations') });\nconst actor = resolveActor(db, chatId, msg.from);\nconst conv = actor.conv; const ctx = conv ? conv.context : null; const history = conv ? conv.history : [];\nconst isCommand = /^\\//.test(text) || !!msg.contact || !text.trim() || looksLikePhone(text);\nconst mode = S_(cfg.aiMode || 'auto').toLowerCase();\n// deterministic commands (approve/reject/reply/pending list/yes/no/cancel) never need the AI\nlet sure = false;\ntry { const r = ruleNLU(db, text, ctx); sure = r && r.confidence >= 0.9 && ['APPROVE','REJECT','HUMAN_REPLY','LIST_APPROVALS','CONFIRM','DENY','CANCEL'].includes(r.intent); } catch(e){}\nconst useAI = !!S_(cfg.geminiApiKey).trim() && mode !== 'rules' && !isCommand && !sure;\nconst prompt = buildAIPrompt(db, text, actor, ctx, history);\nreturn [{ json: { useAI, chatId, text, role: actor.role, geminiBody: { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 600 } } } }];\n"
+      },
+      "id": "hesabo-103",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "useai",
+              "leftValue": "={{ $json.useAI }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "hesabo-104",
+      "name": "Use AI?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $('Config').first().json.geminiModel }}:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $('Config').first().json.geminiApiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.geminiBody) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "hesabo-105",
+      "name": "Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        180
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500,
+      "notes": "لو فشل (مفتاح غلط / حد الاستخدام) المحرك بيرجع تلقائياً لمحرك القواعد."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/* ===================================================================\n   HESABO — shared core for n8n Code nodes (Telegram + Google Sheets)\n   This block is embedded in BOTH \"Build AI Prompt\" and \"HESABO Engine\".\n   =================================================================== */\nconst DAY = 86400000;\nconst NOW = new Date();\nconst TODAY = NOW.toISOString().slice(0,10);\nconst N = v => { if (v===null||v===undefined||v==='') return 0; const x = typeof v==='number' ? v : parseFloat(String(v).replace(/[^\\d.\\-]/g,'')); return isNaN(x)?0:x; };\nconst S_ = v => (v===null||v===undefined) ? '' : String(v);\nconst fmtN = (n,d=0) => Number(n||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});\nconst fmtDate = d => new Date(d).toISOString().slice(0,10);\nconst addDays = (d,n) => new Date(new Date(d).getTime()+n*DAY);\nconst daysBetween = (a,b) => Math.round((new Date(b)-new Date(a))/DAY);\nconst AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];\nconst fmtDateAr = d => { const x = new Date(d); if (isNaN(x)) return S_(d); return `${x.getDate()} ${AR_MONTHS[x.getMonth()]} ${x.getFullYear()}`; };\nconst firstName = n => S_(n).trim().split(/\\s+/)[0]||'';\nconst sum = (arr,f) => arr.reduce((t,x)=>t+(f?f(x):x),0);\nconst byId = (arr,id) => arr.find(x=>x.id===id);\nconst esc = s => S_(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\nfunction norm(s){\n  return S_(s).toLowerCase()\n    .replace(/(\\d)[,،](\\d)/g,'$1$2')\n    .replace(/[ً-ْـ]/g,'')\n    .replace(/[أإآٱ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/ؤ/g,'و').replace(/ئ/g,'ي')\n    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))\n    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))\n    .replace(/[،,؟?!.:;()\\[\\]\"'«»]/g,' ')\n    .replace(/\\s+/g,' ').trim();\n}\nconst normPhone = p => { let d = S_(p).replace(/[٠-٩]/g, x => '٠١٢٣٤٥٦٧٨٩'.indexOf(x)).replace(/\\D/g,''); if (d.startsWith('00')) d = d.slice(2); if (d.startsWith('966')) d = d.slice(3); if (d.startsWith('0')) d = d.slice(1); if (d.length===9 && d.startsWith('5')) return '+966'+d; return d.length>=10 && d.length<=15 ? '+'+d : ''; };\nconst looksLikePhone = t => /^\\s*\\+?[\\d\\s\\-()]{9,18}\\s*$/.test(S_(t)) && !!normPhone(t);\n\n\n/* ---------- sheets loader: one batchGet call (\"Load Sheets\") or legacy per-sheet \"Read X\" nodes ---------- */\nconst SHEET_NAMES = ['Settings','Users','Customers','Products','Invoices','Payments','Quotations','Leads','Orders','Approvals','Conversations','Handoffs'];\nfunction makeRowsReader($){\n  let batch = null;\n  try { const j = $('Load Sheets').first().json; if (j && Array.isArray(j.valueRanges)) batch = j.valueRanges; } catch(e){}\n  if (batch){\n    const map = {};\n    batch.forEach((vr, i) => {\n      const name = SHEET_NAMES[i] || String(vr.range||'').split('!')[0].replace(/'/g,'');\n      const vals = vr.values || []; const hdr = (vals[0]||[]).map(h => String(h).trim());\n      map[name] = vals.slice(1).filter(r => r.some(v => String(v).trim() !== '')).map(r => { const o = {}; hdr.forEach((h, k) => { if (h) o[h] = r[k] === undefined ? '' : r[k]; }); return o; });\n    });\n    return name => map[String(name).replace(/^Read /,'')] || [];\n  }\n  return name => { try { return $(name).all().map(i => i.json); } catch(e){ return []; } };\n}\n\n/* ---------- load the sheets into a typed DB ---------- */\nfunction loadDB(sheets){\n  const rows = n => (sheets[n]||[]).filter(r => r && Object.values(r).some(v => v!==''&&v!==null&&v!==undefined));\n  const settings = {}; rows('Settings').forEach(r => settings[S_(r.key).trim()] = S_(r.value).trim());\n  const bool = k => /^(true|1|yes|نعم)$/i.test(S_(settings[k]));\n  const db = {\n    settings: { companyName: settings.companyName||'الشركة', botName: settings.botName||'مساعد حسابو', currency: settings.currency||'ريال', vat: N(settings.vat)||15, overdueDays: N(settings.overdueDays)||30, approvalThreshold: N(settings.approvalThreshold)||20000, followUpDays: N(settings.followUpDays)||7,\n      approvals: { CREATE_INVOICE: bool('approval_CREATE_INVOICE'), RECORD_PAYMENT: bool('approval_RECORD_PAYMENT'), SEND_QUOTATION: bool('approval_SEND_QUOTATION'), CREATE_CUSTOMER: bool('approval_CREATE_CUSTOMER') } },\n    users: rows('Users').map(r => ({ id:S_(r.id), name:S_(r.name), role:S_(r.role), phone:normPhone(r.phone), title:S_(r.title), telegram_id:S_(r.telegram_id) })),\n    customers: rows('Customers').map(r => ({ id:S_(r.id), company:S_(r.company), core:S_(r.core), name:S_(r.contact_name), phone:normPhone(r.phone), vat:S_(r.vat), city:S_(r.city), creditLimit:N(r.credit_limit), status:S_(r.status)||'active', salesRep:S_(r.sales_rep), telegram_id:S_(r.telegram_id) })),\n    products: rows('Products').map(r => ({ id:S_(r.id), name:S_(r.name), cat:S_(r.category), unit:S_(r.unit), price:N(r.price), vat:N(r.vat)||15, keys:S_(r.keywords).split(/[,،]/).map(x=>x.trim()).filter(x=>x && !x.startsWith('(')) })),\n    invoices: rows('Invoices').map(r => ({ id:S_(r.id), customerId:S_(r.customer_id), date:S_(r.date), dueDate:S_(r.due_date), project:S_(r.project), items:S_(r.items), subtotal:N(r.subtotal), vat:N(r.vat), amount:N(r.amount), paid:N(r.paid), remaining:N(r.remaining), status:S_(r.status), createdBy:S_(r.created_by) })),\n    payments: rows('Payments').map(r => ({ id:S_(r.id), customerId:S_(r.customer_id), invoiceId:S_(r.invoice_id), date:S_(r.date), amount:N(r.amount), method:S_(r.method), reference:S_(r.reference), recordedBy:S_(r.recorded_by) })),\n    quotations: rows('Quotations').map(r => ({ id:S_(r.id), customerId:S_(r.customer_id), leadId:S_(r.lead_id), contactPhone:S_(r.contact_phone), date:S_(r.date), validUntil:S_(r.valid_until), items:S_(r.items), subtotal:N(r.subtotal), vat:N(r.vat), total:N(r.total), status:S_(r.status), location:S_(r.location), thickness:S_(r.thickness), notes:S_(r.notes), requestedVia:S_(r.requested_via), salesRep:S_(r.sales_rep), followUps:N(r.follow_ups), lastFollowUp:S_(r.last_follow_up) })),\n    leads: rows('Leads').map(r => ({ id:S_(r.id), date:S_(r.date), name:S_(r.name), phone:S_(r.phone), company:S_(r.company), service:S_(r.service), serviceName:S_(r.service_name), location:S_(r.location), qty:N(r.qty), unit:S_(r.unit), thickness:S_(r.thickness), status:S_(r.status), source:S_(r.source), assignedTo:S_(r.assigned_to), telegram_id:S_(r.telegram_id) })),\n    orders: rows('Orders').map(r => ({ id:S_(r.id), quotationId:S_(r.quotation_id), customerId:S_(r.customer_id), date:S_(r.date), total:N(r.total), status:S_(r.status) })),\n    approvals: rows('Approvals').map(r => ({ id:S_(r.id), type:S_(r.type), payload:safeJSON(r.payload,{}), requestedBy:S_(r.requested_by), requestedByChat:S_(r.requested_by_chat), requesterRole:S_(r.requester_role), approverRole:S_(r.approver_role), requestedAt:S_(r.requested_at), status:S_(r.status), decidedBy:S_(r.decided_by), decidedAt:S_(r.decided_at), note:S_(r.note), result:S_(r.result) })),\n    conversations: rows('Conversations').map(r => ({ id:S_(r.id), phone:S_(r.phone), role:S_(r.role), name:S_(r.name), context:safeJSON(r.context,null), history:safeJSON(r.history,[]), lastMessage:S_(r.last_message), updatedAt:S_(r.updated_at) })),\n    handoffs: rows('Handoffs').map(r => ({ id:S_(r.id), ts:S_(r.ts), chatId:S_(r.chat_id), actor:S_(r.actor), role:S_(r.role), message:S_(r.message), reason:S_(r.reason), status:S_(r.status), reply:S_(r.reply) })),\n  };\n  db.productById = id => db.products.find(p=>p.id===id);\n  db.expandItems = str => S_(str).split(';').map(x=>x.trim()).filter(Boolean).map(x => { const m = x.match(/^(P-\\d+)x([\\d.]+)$/i); if (!m) return { productId:'', name:x, unit:'', qty:1, price:0, total:0 }; const p = db.productById(m[1].toUpperCase()); const qty = N(m[2]); return { productId:m[1].toUpperCase(), name:p?p.name:m[1], unit:p?p.unit:'', qty, price:p?p.price:0, total:qty*(p?p.price:0) }; });\n  db.nextId = (prefix, arr, start) => { let max = start-1; arr.forEach(x => { const m = S_(x.id).match(/(\\d+)$/); if (m && S_(x.id).startsWith(prefix)) max = Math.max(max, +m[1]); }); return prefix + (max+1); };\n  return db;\n}\nfunction safeJSON(v, d){ if (v===null||v===undefined||v==='') return d; if (typeof v==='object') return v; try { return JSON.parse(v); } catch(e){ return d; } }\nfunction invoiceStatus(inv){ if (inv.remaining<=0) return 'paid'; const overdue = inv.dueDate < TODAY; if (inv.paid>0) return overdue?'overdue':'partial'; return overdue?'overdue':'unpaid'; }\nconst STATUS_AR = { paid:'مدفوعة', partial:'مدفوعة جزئياً', unpaid:'غير مدفوعة', overdue:'متأخرة', draft:'مسودة', sent:'مرسل', accepted:'مقبول', rejected:'مرفوض', expired:'منتهي', pending_approval:'بانتظار الاعتماد', new:'جديد', contacted:'تم التواصل', quoted:'تم التسعير', won:'تم الفوز', lost:'خسارة', open:'مفتوح', in_progress:'قيد التنفيذ', done:'منتهي', pending:'معلق', approved:'معتمد', resolved:'تم الحل', active:'نشط', blocked:'موقوف' };\nconst ROLE_AR = { customer:'عميل', sales:'مبيعات', accountant:'محاسب', admin:'مدير', unknown:'رقم غير معروف' };\nconst STAFF = r => r==='sales'||r==='accountant'||r==='admin';\nfunction customerInvoices(db,cid){ return db.invoices.filter(i=>i.customerId===cid && i.status!=='draft'); }\nfunction customerBalance(db,cid){ const inv = customerInvoices(db,cid); return { total:sum(inv,i=>i.amount), paid:sum(inv,i=>i.paid), remaining:sum(inv,i=>i.remaining), overdue:sum(inv.filter(i=>invoiceStatus(i)==='overdue'),i=>i.remaining), count:inv.length }; }\nfunction customerName(db,cid){ const c = byId(db.customers,cid); return c ? c.company : (cid||'—'); }\n\n/* ---------- identity: who is this Telegram chat? ---------- */\nfunction resolveActor(db, chatId, from){\n  const cid = S_(chatId);\n  const conv = db.conversations.find(c => c.id===cid) || null;\n  const u = db.users.find(x => x.telegram_id===cid); if (u) return { role:u.role, name:u.name, id:u.id, phone:u.phone, chatId:cid, user:u, conv, linked:true };\n  const c = db.customers.find(x => x.telegram_id===cid); if (c) return { role:'customer', name:c.name, id:c.id, phone:c.phone, chatId:cid, customer:c, conv, linked:true };\n  if (conv && conv.phone){ // linked in an earlier turn (row not yet visible) — fall back to the conversation record\n    const u2 = db.users.find(x => x.phone===normPhone(conv.phone)); if (u2) return { role:u2.role, name:u2.name, id:u2.id, phone:u2.phone, chatId:cid, user:u2, conv, linked:true };\n    const c2 = db.customers.find(x => x.phone===normPhone(conv.phone)); if (c2) return { role:'customer', name:c2.name, id:c2.id, phone:c2.phone, chatId:cid, customer:c2, conv, linked:true };\n  }\n  const nm = from ? [from.first_name, from.last_name].filter(Boolean).join(' ') : '';\n  return { role:'unknown', name: nm || 'رقم غير معروف', id:null, phone:'', chatId:cid, conv, linked:false, tgName:nm };\n}\n\n/* ---------- catalog matching & entity extraction ---------- */\nconst CITIES = ['الرياض','جدة','المدينة المنورة','مكة','الدمام','الخبر','القصيم','تبوك','أبها','جازان','ينبع','الطائف','حائل','الجبيل','نجران','الأحساء'];\nconst CITY_N = CITIES.map(c => ({ n:norm(c), name:c }));\nfunction matchProduct(db, text){\n  const n = norm(text); if (!n) return null;\n  if (/كور|coring|تخريم|ثقب/.test(n)){ if (/\\b200\\b/.test(n)) return db.productById('P-06'); if (/\\b150\\b/.test(n)) return db.productById('P-05'); return db.productById('P-04'); }\n  if (/ارضي|floor/.test(n)) return db.productById('P-03');\n  if (/سلك|واير|wire/.test(n)) return db.productById('P-02');\n  for (const p of db.products){ for (const k of p.keys){ if (k && n.includes(norm(k))) return p; } }\n  const m = n.match(/^p-?(\\d\\d)$/); if (m) return db.productById('P-'+m[1]);\n  return null;\n}\nfunction unitNorm(u){ u = norm(u||''); if (/مربع|م2|م²|²/.test(u)) return 'م²'; if (/مكعب|م3|م³|³/.test(u)) return 'م³'; if (/نقط|ثقب|ثقوب|فتح|كور/.test(u)) return 'نقطة'; if (/عدد|قطع|حب/.test(u)) return 'عدد'; if (/متر|م ?ط|^م$/.test(u)) return 'م.ط'; return u||null; }\nfunction findCustomerInText(db, n){\n  let best = null;\n  for (const c of db.customers){\n    const core = norm(c.core); if (core.length>=3 && n.includes(core) && (!best || core.length>best.len)) best = { c, len:core.length };\n    const nm = norm(c.name).split(' '); if (nm.length===2 && n.includes(nm[0]) && n.includes(nm[1]) && (!best || 99>best.len)) best = { c, len:99 };\n    const idm = n.match(/c-?0*(\\d{1,3})(?=\\s|$)/); if (idm && c.id==='C-'+String(idm[1]).padStart(3,'0')) return c;\n  }\n  return best ? best.c : null;\n}\nfunction extractEntities(db, raw){\n  const n = norm(raw); const e = {}; let m;\n  if ((m = n.match(/(?:فاتور[هة]|فواتير|inv)[\\s#:\\-]*(?:رقم\\s*)?#?\\s*(\\d{3,6})/))) e.invoice_no = +m[1]; else if ((m = n.match(/inv[\\s\\-]?(\\d{3,6})/))) e.invoice_no = +m[1];\n  if ((m = n.match(/(?:عرض (?:ال)?سعر|عرض|qt)[\\s#:\\-]*(?:رقم\\s*)?#?\\s*(\\d{4})(?=\\s|$)/))) e.quotation_no = +m[1]; else if ((m = n.match(/qt[\\s\\-]?(\\d{4})/))) e.quotation_no = +m[1];\n  if ((m = n.match(/(ap|ho)[\\s\\-]?(\\d{1,5})(?=\\s|$)/))) e.ref_id = m[1].toUpperCase()+'-'+m[2];\n  if ((m = n.match(/(\\d+(?:\\.\\d+)?)\\s*(?:الف|ألف|k)(?=\\s|$)/))) e.amount = Math.round(+m[1]*1000); else if ((m = n.match(/(\\d{2,9}(?:\\.\\d+)?)\\s*(?:ريال|ر\\s?س|sar|جنيه|درهم)/))) e.amount = +m[1];\n  if ((m = n.match(/(\\d+(?:\\.\\d+)?)\\s*(متر مربع|متر مكعب|متر طولي|م\\.?ط|م ?2|م²|م ?3|م³|متر|م(?=\\s|$)|نقطه|نقاط|نقط|عدد|قطعه|قطع|ثقب|ثقوب|فتحه|فتحات|حبه|كور(?=\\s|$))/))) { e.quantity = +m[1]; e.unit = unitNorm(m[2]); }\n  if ((m = n.match(/(?:سمك|سماكه|تخانه)\\s*(?:ال)?(?:خرسانه|حيطه|بلاطه|جدار)?\\s*(\\d+(?:\\.\\d+)?)\\s*(سم|مم|cm|mm|م|متر)?/))) { e.thickness_cm = (m[2]==='مم'||m[2]==='mm') ? +m[1]/10 : (m[2]==='م'||m[2]==='متر') ? +m[1]*100 : +m[1]; }\n  else if ((m = n.match(/(\\d+(?:\\.\\d+)?)\\s*(?:سم|cm)(?=\\s|$)/))) e.thickness_cm = +m[1];\n  for (const c of CITY_N){ if (n.includes(c.n)) { e.location = c.name; break; } }\n  if (!e.location && (m = n.match(/(?:في موقع|بموقع|موقع|الموقع|مكان|في|فى)\\s+([؀-ۿ]{3,}(?:\\s[؀-ۿ]{2,})?)/))) { if (!/^(الفاتور|الحساب|عرض|السعر|الشرك|النظام|الموقع)/.test(m[1])) e.location_text = m[1]; }\n  if ((m = n.match(/(\\d+)\\s*(?:يوم|ايام)/))) e.days = +m[1];\n  if (/اسبوع|week/.test(n)) e.period='week'; else if (/شهر|month/.test(n)) e.period='month';\n  if (/كاش|نقدي|نقدا|cash/.test(n)) e.payment_method='نقدي'; else if (/تحويل|حواله|حولت|بنك|transfer|iban|ايبان/.test(n)) e.payment_method='تحويل بنكي'; else if (/شيك|cheque|check/.test(n)) e.payment_method='شيك';\n  if ((m = n.match(/(?:رقم (?:مرجع|المرجع|التحويل|العمليه|الحواله)|مرجع|ref(?:erence)?)[:\\s#]*([a-z0-9\\-]{4,})/))) e.reference = m[1].toUpperCase();\n  const ph = normPhone((S_(raw).match(/(?:\\+?966|0)?\\s?5\\d{8}/)||[''])[0]); if (ph) e.phone = ph;\n  const prod = matchProduct(db, n); if (prod) e.service = prod.id;\n  const cust = findCustomerInText(db, n); if (cust) e.customer_id = cust.id;\n  if ((m = S_(raw).match(/(شركة|مؤسسة|شركه|مؤسسه)\\s+[؀-ۿ]+(?:\\s[؀-ۿ]+){0,3}/))) e.company_text = m[0].replace(/\\s+(اسم|المسؤول|تليفون|رقم|جوال|موبايل|عليه|عليها|رصيد|كام).*$/,'');\n  if ((m = S_(raw).match(/(?:اسمه|اسمها|اسم المسؤول|المسؤول|الاسم|اسم)\\s*:?\\s*([؀-ۿ]+(?:\\s[؀-ۿ]+)?)/))) e.person_name = m[1];\n  const nums = (n.match(/(?<![\\w-])\\d+(?:\\.\\d+)?(?![\\w])/g)||[]).map(Number); if (nums.length) e.numbers = nums;\n  return e;\n}\n\n/* ---------- intents ---------- */\nconst INTENTS = {\n  GREETING:'greeting / small talk', THANKS:'thanks', HELP:'asks what the assistant can do',\n  CUSTOMER_BALANCE:'how much is owed / current balance (عليا كام؟ رصيدي؟ شركة X عليها كام؟)',\n  LAST_INVOICE:'send the last / latest invoice', INVOICE_STATUS:'is invoice N paid? status of a specific invoice number', INVOICE_DUE_DATE:'due date of an invoice', LIST_INVOICES:'list invoices (all / open / unpaid)',\n  PAYMENT_SEARCH:'what was paid / last payment / list payments', RECORD_PAYMENT:'report or record a payment made (حولت 5000، سجل دفعة)', STATEMENT:'account statement',\n  CREATE_QUOTATION:'request a quotation / price for a service', QUOTATION_STATUS:'status of an existing quotation', OPEN_QUOTATIONS:'staff: list open / pending quotations', FOLLOW_UP:'staff: follow up customers who did not answer quotations', SALES_REPORT:'staff: sales report for week / month',\n  WHO_OWES:'staff: which customers owe money / overdue more than N days', CUSTOMER_SEARCH:'staff: find customer details', CREATE_CUSTOMER:'staff: add a new customer', CREATE_INVOICE:'staff: create an invoice for a customer', CREATE_LEAD:'staff: register a new lead',\n  APPROVE:'staff: approve a pending request by its id (اعتمد AP-3)', REJECT:'staff: reject a pending request by its id (ارفض AP-3)', LIST_APPROVALS:'staff: list pending approvals', HUMAN_REPLY:'admin: reply to a handoff (رد HO-2 النص)',\n  CONFIRM:'yes / confirm / ok', DENY:'no / not correct', CANCEL:'cancel the current request', FLOW_ANSWER:'answers a question the assistant asked in an active flow', UNKNOWN:'anything else / unclear',\n};\nconst INTENT_AR = { GREETING:'تحية', THANKS:'شكر', HELP:'مساعدة', CUSTOMER_BALANCE:'رصيد العميل', LAST_INVOICE:'آخر فاتورة', INVOICE_STATUS:'حالة فاتورة', INVOICE_DUE_DATE:'موعد استحقاق', LIST_INVOICES:'قائمة الفواتير', PAYMENT_SEARCH:'بحث مدفوعات', RECORD_PAYMENT:'تسجيل دفعة', STATEMENT:'كشف حساب', CREATE_QUOTATION:'طلب عرض سعر', QUOTATION_STATUS:'حالة عرض سعر', OPEN_QUOTATIONS:'العروض المفتوحة', FOLLOW_UP:'متابعة العروض', SALES_REPORT:'تقرير مبيعات', WHO_OWES:'المتأخرين بالسداد', CUSTOMER_SEARCH:'بحث عميل', CREATE_CUSTOMER:'إضافة عميل', CREATE_INVOICE:'إنشاء فاتورة', CREATE_LEAD:'تسجيل فرصة', APPROVE:'اعتماد', REJECT:'رفض طلب', LIST_APPROVALS:'الطلبات المعلقة', HUMAN_REPLY:'رد بشري', CONFIRM:'تأكيد', DENY:'رفض', CANCEL:'إلغاء', FLOW_ANSWER:'إجابة', UNKNOWN:'غير مفهوم' };\nconst COMMON = ['GREETING','THANKS','HELP','CONFIRM','DENY','CANCEL','FLOW_ANSWER','UNKNOWN'];\nconst PERMS = {\n  customer:[...COMMON,'CUSTOMER_BALANCE','LAST_INVOICE','INVOICE_STATUS','INVOICE_DUE_DATE','LIST_INVOICES','PAYMENT_SEARCH','RECORD_PAYMENT','STATEMENT','CREATE_QUOTATION','QUOTATION_STATUS'],\n  sales:[...COMMON,'CUSTOMER_SEARCH','CREATE_CUSTOMER','CUSTOMER_BALANCE','CREATE_LEAD','CREATE_QUOTATION','QUOTATION_STATUS','OPEN_QUOTATIONS','FOLLOW_UP','SALES_REPORT'],\n  accountant:[...COMMON,'CUSTOMER_SEARCH','CUSTOMER_BALANCE','LAST_INVOICE','INVOICE_STATUS','INVOICE_DUE_DATE','LIST_INVOICES','PAYMENT_SEARCH','RECORD_PAYMENT','STATEMENT','CREATE_INVOICE','WHO_OWES','APPROVE','REJECT','LIST_APPROVALS'],\n  admin: Object.keys(INTENTS),\n  unknown:[...COMMON,'CREATE_QUOTATION'],\n};\nconst SENSITIVE = ['CREATE_INVOICE','RECORD_PAYMENT','CREATE_CUSTOMER'];\n\n/* ---------- rule-based NLU (offline fallback) ---------- */\nfunction ruleNLU(db, raw, ctx){\n  const n = norm(raw); const e = extractEntities(db, raw);\n  const R = (intent,conf,why) => ({ intent, confidence:conf, entities:e, engine:'rules', why });\n  const words = n.split(' ').length;\n  if (/^(الغي|الغاء|كنسل|cancel|خلاص مش عايز|مش عايز|بطل|وقف)/.test(n)) return R('CANCEL',.95,'cancel');\n  if (/^(ايوه|ايوا|اه|اها|نعم|تمام|موافق|اوك|اوكي|ok|okay|yes|اكيد|ماشي|صح|تاكيد|اعتمد الطلب|كده تمام|تمام كده|y)(?=\\s|$)/.test(n) && words<=3) return R('CONFIRM',.95,'confirm');\n  if (/^(لا|لأ|لاء|no|مش صح|غلط|مش كده|لا غلط)(?=\\s|$)/.test(n) && words<=3) return R('DENY',.95,'deny');\n  if (/^(اعتمد|اعتماد|وافق|موافقه علي|approve)(?=\\s|$)/.test(n) && e.ref_id) return R('APPROVE',.95,'approve');\n  if (/^(ارفض|رفض|reject)(?=\\s|$)/.test(n) && e.ref_id) return R('REJECT',.95,'reject');\n  if (/^(رد|reply)(?=\\s|$)/.test(n) && e.ref_id && /^ho-/i.test(e.ref_id)) return R('HUMAN_REPLY',.95,'human reply');\n  if (/(الطلبات المعلقه|المعلق|الموافقات|طلبات الاعتماد|pending approvals|ايه المعلق|فيه حاجه مستنيه)/.test(n)) return R('LIST_APPROVALS',.9,'approvals');\n  if (ctx && ctx.flow){ const newReq = /(عليا كام|رصيد|اخر فاتوره|كشف حساب|عرض سعر|تقرير|مين عليه)/.test(n); if (!newReq) return R('FLOW_ANSWER',.85,'active flow'); }\n  if (/^(سلام|السلام عليكم|اهلا|اهلين|هاي|هلا|مرحبا|صباح الخير|صباح النور|مساء الخير|مساء النور|hi|hello|hey|السلام|ازيك|ازيكم|كيفك|كيف الحال|عامل ايه)/.test(n) && words<=4) return R('GREETING',.95,'greeting');\n  if (/^(شكرا|تسلم|مشكور|thanks|thank you|يعطيك العافيه|الله يعطيك العافيه)/.test(n) && words<=4) return R('THANKS',.95,'thanks');\n  if (/(مساعده|help|تقدر تعمل ايه|ايه اللي تقدر|الاوامر|ممكن اعمل ايه|بتعمل ايه|ازاي استخدم|ايه الخدمات اللي)/.test(n)) return R('HELP',.9,'help');\n  if (/(مين عليه|مين عليهم|مين اللي عليه|العملاء اللي عليهم|المتاخرين|متاخر في السداد|overdue|الديون|التحصيل|المديونيات|مستحقات متاخره|اكتر من \\d+ يوم|فاتت الاستحقاق|عدت الاستحقاق|مين لسه ما دفعش|مين ما دفعش)/.test(n)) return R('WHO_OWES',.9,'who owes');\n  if (/(اعمل متابعه|متابعه للعملاء|follow ?up|فكر العملاء|ذكر العملاء|ابعت تذكير|تابع العملاء|متابعه العروض|اللي ما ردوش|ما ردوش)/.test(n)) return R('FOLLOW_UP',.9,'follow up');\n  if (/(تقرير المبيعات|تقرير الاسبوع|تقرير الشهر|sales report|ملخص المبيعات|المبيعات هذا الاسبوع|المبيعات الاسبوع|المبيعات الشهر|بعنا كام|جهزلي تقرير|تقرير مبيعات|ايه اخبار المبيعات)/.test(n)) return R('SALES_REPORT',.9,'sales report');\n  if (/(عروض الاسعار المفتوحه|العروض المفتوحه|كل عروض الاسعار|العروض المعلقه|open quotations|العروض اللي لسه|عروض السعر اللي لسه|عروض الاسعار المعلقه|العروض اللي منتظره|هاتلي كل عروض)/.test(n)) return R('OPEN_QUOTATIONS',.9,'open quotes');\n  if (e.quotation_no || /(فين عرض السعر|حاله عرض السعر|حاله العرض|عرض السعر بتاعي|عرضي وصل|العرض اتوافق|العرض اتقبل|عرض السعر اتقبل|اتبعت العرض|العرض اتبعت|رد علي العرض|العرض وصل|هتبعتوا العرض امتي|العرض هيتبعت امتي|فين العرض|صار علي عرض|صار علي العرض|وصلني عرض|العرض جاهز|عرض السعر جاهز)/.test(n)) return R('QUOTATION_STATUS',.85,'quotation status');\n  if (/(ضيف عميل|اضف عميل|سجل عميل|add customer|new customer|انشئ عميل|ضيفلي عميل|سجلي عميل|اضيف عميل)/.test(n)) return R('CREATE_CUSTOMER',.9,'create customer');\n  if (/(سجل ليد|\\blead\\b|عميل محتمل|ضيف ليد|فرصه جديده|سجل فرصه|عميل مهتم|سجله كفرصه)/.test(n)) return R('CREATE_LEAD',.85,'create lead');\n  if (/(عرض سعر|عرض اسعار|عروض اسعار|تسعير|تسعيره|quotation|quote|(?<!مديون |عليا |عليه |عليها )(?<![؀-ۿ])بكام(?![؀-ۿ])|كام سعر|سعر ال|اسعار ال|price|كام تكلفه|تكلفه|كم سعر|كم يكلف|(?<![؀-ۿ])بكم(?![؀-ۿ]))/.test(n) || (e.service && /(محتاج|عايز|عاوز|احتاج|ابغي|ابي|ابغى|نبي|ممكن|اطلب|طلب|عندنا شغل|عندي شغل|نحتاج)/.test(n))) return R('CREATE_QUOTATION',.88,'quotation request');\n  if (/(اعمل فاتوره|اعملي فاتوره|انشئ فاتوره|اصدر فاتوره|فاتوره جديده|create invoice|اعمل فاتور|سجل فاتوره|اطلع فاتوره)/.test(n)) return R('CREATE_INVOICE',.9,'create invoice');\n  if (/(عميل جديد)/.test(n)) return R('CREATE_CUSTOMER',.7,'new customer words');\n  if (/(دور علي عميل|ابحث عن عميل|بيانات عميل|بيانات شركه|رقم عميل|تليفون عميل|search customer|عميل اسمه|فين عميل|هات بيانات|رقم شركه|تليفون شركه|بيانات ال)/.test(n)) return R('CUSTOMER_SEARCH',.85,'customer search');\n  if (/(كشف حساب|كشف الحساب|statement|اعمل كشف|ابعت كشف|كشف حسابي|هات كشف)/.test(n)) return R('STATEMENT',.92,'statement');\n  if (/(موعد استحقاق|موعد الاستحقاق|استحقاق|تاريخ الاستحقاق|due date|تستحق|يستحق|امتي الدفع|اخر ميعاد|اخر موعد|ميعاد الدفع|امتي اسدد|امتي السداد|متي اسدد|متي السداد)/.test(n)) return R('INVOICE_DUE_DATE',.88,'due date');\n  if (/(اخر فاتوره|last invoice|اخر فاتور|هات الفاتوره الاخيره|الفاتوره الاخيره|اخر فاتورتي)/.test(n)) return R('LAST_INVOICE',.92,'last invoice');\n  if (e.invoice_no && !/((?<!ات)دفعت|حولت|سجل دفعه)/.test(n)) return R('INVOICE_STATUS',.88,'invoice number');\n  if (/(الفاتوره اتدفعت|اتدفعت|اتسددت|حاله الفاتوره|الفاتوره مدفوعه|status of invoice|invoice status|الفاتوره دي)/.test(n) && !/((?<!ات)دفعت|حولت)/.test(n)) return R('INVOICE_STATUS',.8,'invoice status words');\n  if (/(فواتيري|الفواتير|كل الفواتير|هات الفواتير|فواتير مفتوحه|الفواتير المفتوحه|فواتير غير مدفوعه|invoices|عندي فواتير|ايه الفواتير|فواتير ال|فواتير)/.test(n)) return R('LIST_INVOICES',.85,'list invoices');\n  const payVerb = /(سجل دفعه|سجلي دفعه|اضف دفعه|record payment|تم التحويل|حولت|حولتلكم|دفعتلكم|سددت|(?<!ات)دفعت|ادفع|عايز ادفع|هدفع|هحول)/.test(n);\n  const paySearch = /(اخر دفعه|مدفوعات|دفعاتي|ايه اللي اتدفع|كام دفعت|دفعت كام|payments|اخر تحويل|التحويلات|كام اللي اتدفع|اللي اتدفع|دفعاتنا|هات المدفوعات|سجل الدفعات|الدفعات)/.test(n);\n  if (payVerb && (e.amount || (e.numbers && e.numbers.some(x=>x>=50)) || /سجل|اضف|record|ادفع|عايز ادفع|هدفع|هحول/.test(n))) { if (!e.amount && e.numbers){ const c = e.numbers.filter(x=>x!==e.invoice_no && x>=50); if (c.length) e.amount = Math.max(...c); } return R('RECORD_PAYMENT',.88,'payment'); }\n  if (paySearch || (/دفع/.test(n) && /كام|امتي|ايه/.test(n))) return R('PAYMENT_SEARCH',.85,'payment search');\n  if (/(عليا كام|عليه كام|عليها كام|علي كام|كام عليا|كام عليه|رصيد|الرصيد|المتبقي|المستحق|باقي عليا|كم علي|كم المتبقي|balance|outstanding|اجمالي المستحق|حسابي كام|كام حسابي|عندكم كام|كام ليكم|ليكم كام|مديون بكام|عليا فلوس|عليه فلوس|عليها فلوس|كم باقي|فاضل عليا|فاضل كام|الباقي علي|كم المبلغ|المبلغ الباقي|كم عليه|كم عليها|عليا ايه|ايه اللي عليا)/.test(n)) return R('CUSTOMER_BALANCE',.9,'balance');\n  if (e.customer_id && /(عميل|شركه|مؤسسه)/.test(n)) return R('CUSTOMER_SEARCH',.6,'customer name only');\n  return R('UNKNOWN',.3,'no pattern');\n}\n\n/* ---------- prompt for Gemini ---------- */\nfunction buildAIPrompt(db, raw, actor, ctx, history){\n  const roleDesc = { customer:'a registered customer of the company', sales:'a sales representative (staff)', accountant:'an accountant (staff)', admin:'the company admin / pricing manager (staff)', unknown:'an unknown user, not registered' }[actor.role];\n  const intentLines = Object.entries(INTENTS).map(([k,v]) => `- ${k}: ${v}`).join('\\n');\n  const services = db.products.map(p => `${p.id} ${p.name} (${p.unit})`).join('; ');\n  const hist = (history||[]).slice(-6).map(m => (m.dir==='out' ? 'USER: ' : 'ASSISTANT: ') + S_(m.text).slice(0,200)).join('\\n');\n  const flowTxt = ctx && ctx.flow ? JSON.stringify({ flow:ctx.flow, filled:ctx.slots, missing:ctx.missing, awaiting_confirmation:!!ctx.confirming }) : 'none';\n  return `You are the NLU (intent detection) layer of \"HESABO\", a Telegram/WhatsApp assistant connected to the accounting system of a concrete cutting / coring / GPR scanning contractor in Saudi Arabia. Users write in Arabic (Egyptian or Gulf dialect) or English.\nYour ONLY job: classify the LAST user message into one intent and extract entities. Never compute balances, never invent data.\n\nSender role: ${actor.role} (${roleDesc}). Sender name: ${actor.name}.${actor.customer ? ' Registered company: '+actor.customer.company : ''}\nKnown customer companies (staff may refer to them): ${db.customers.slice(0,12).map(c=>c.company).join(' | ')} ... (${db.customers.length} total; put the name the user wrote in customer_name)\nServices catalog: ${services}\nActive flow (the assistant is collecting information): ${flowTxt}\nRules for an active flow: if the message answers a missing slot, set intent \"FLOW_ANSWER\" and put the values in flow_answer using the slot names in \"missing\". If awaiting_confirmation and the user agrees (نعم/أيوه/تمام/ok) → \"CONFIRM\"; disagrees → \"DENY\"; wants to stop → \"CANCEL\". If the message is clearly a NEW different request, classify it normally.\nApproval commands: \"اعتمد AP-3\" → APPROVE with ref_id \"AP-3\"; \"ارفض AP-3 السبب\" → REJECT; \"رد HO-2 النص\" → HUMAN_REPLY with ref_id \"HO-2\".\n\nRecent conversation (USER = sender, ASSISTANT = bot):\n${hist || '(none)'}\n\nIntents:\n${intentLines}\n\nReply with ONLY one JSON object, no prose, no markdown:\n{\"intent\": \"<INTENT>\", \"confidence\": <0..1>, \"entities\": {\"customer_name\": string|null, \"invoice_no\": number|null, \"quotation_no\": number|null, \"ref_id\": string|null, \"amount\": number|null, \"service\": string|null (a product id like \"P-04\" when it matches the catalog, else the words used), \"quantity\": number|null, \"unit\": string|null, \"location\": string|null, \"thickness_cm\": number|null, \"payment_method\": \"نقدي\"|\"تحويل بنكي\"|\"شيك\"|null, \"reference\": string|null, \"days\": number|null, \"period\": \"week\"|\"month\"|null, \"person_name\": string|null, \"company_text\": string|null, \"phone\": string|null, \"invoice_filter\": \"open\"|\"all\"|null, \"reply_text\": string|null}, \"flow_answer\": {\"<slot>\": value} | null}\n\nLAST USER MESSAGE: \"\"\"${S_(raw).slice(0,600)}\"\"\"`;\n}\n/* merge an AI answer with rule extraction */\nfunction mergeAI(db, raw, ai){\n  const out = ai || {}; const intent = INTENTS[out.intent] ? out.intent : 'UNKNOWN';\n  const ents = extractEntities(db, raw); const a = out.entities || {};\n  for (const [k,v] of Object.entries(a)){ if (v!==null && v!==undefined && v!=='') ents[k] = v; }\n  if (a.service){ const p = matchProduct(db, String(a.service)); if (p) ents.service = p.id; }\n  if (a.customer_name && !ents.customer_id){ const c = findCustomerInText(db, norm(a.customer_name)); if (c) ents.customer_id = c.id; else ents.customer_name = a.customer_name; }\n  if (a.unit) ents.unit = unitNorm(a.unit)||a.unit;\n  if (a.phone){ const p = normPhone(a.phone); if (p) ents.phone = p; }\n  if (a.ref_id) ents.ref_id = String(a.ref_id).toUpperCase().replace(/\\s+/g,'').replace(/^(AP|HO)(\\d)/,'$1-$2');\n  return { intent, confidence: Math.max(0,Math.min(1,+out.confidence||.7)), entities:ents, engine:'ai', flow_answer: out.flow_answer||null };\n}\n\n\n/* ===================================================================\n   HESABO — Code node B: \"HESABO Engine\"\n   RBAC + flows + business logic + approvals. Produces items tagged\n   _kind = \"msg\" | \"append:<Sheet>\" | \"upsert:<Sheet>\" for the Switch.\n   =================================================================== */\nconst T0 = Date.now();\nconst rows = makeRowsReader($);\nconst upd = $('Telegram Trigger').first().json;\nconst msg = upd.message || upd.edited_message || {};\nconst raw = S_(msg.text || msg.caption || '');\nconst chatId = S_(msg.chat && msg.chat.id);\nconst cfg = (() => { try { return $('Config').first().json; } catch(e){ return {}; } })();\nconst db = loadDB({ Settings: rows('Read Settings'), Users: rows('Read Users'), Customers: rows('Read Customers'), Products: rows('Read Products'), Invoices: rows('Read Invoices'), Payments: rows('Read Payments'), Quotations: rows('Read Quotations'), Leads: rows('Read Leads'), Orders: rows('Read Orders'), Approvals: rows('Read Approvals'), Conversations: rows('Read Conversations'), Handoffs: rows('Read Handoffs') });\n\n/* ---- AI answer (if the Gemini node ran) ---- */\nlet ai = null, aiError = '', aiTried = false;\ntry { const g = $('Gemini').first().json; aiTried = true;\n  if (g && g.candidates && g.candidates[0]){ let t = (g.candidates[0].content.parts||[]).map(p=>p.text||'').join(''); t = t.replace(/^```(?:json)?\\s*/i,'').replace(/```\\s*$/,'').trim(); const s = t.indexOf('{'), e = t.lastIndexOf('}'); ai = JSON.parse(t.slice(s, e+1)); }\n  else aiError = g && g.error ? (g.error.message || JSON.stringify(g.error)).slice(0,120) : 'no candidates';\n} catch(e){ if (aiTried) aiError = String(e.message||e).slice(0,120); }\n\n/* ---- output collectors ---- */\nconst OUT = []; const NOTES = [];\nconst toHTML = t => esc(t).replace(/\\*([^*\\n]+)\\*/g,'<b>$1</b>');\nconst send = (chat, text) => { if (!chat) return; OUT.push({ _kind:'msg', chat_id:String(chat), text: toHTML(text) }); };\nconst append = (sheet, row) => OUT.push(Object.assign({ _kind:'append:'+sheet }, row));\nconst upsert = (sheet, row) => OUT.push(Object.assign({ _kind:'upsert:'+sheet }, row));\nconst usersByRole = role => db.users.filter(u => u.role===role);\nfunction notifyRole(role, text, label){ const us = usersByRole(role).filter(u => u.telegram_id); if (!us.length) { NOTES.push(`لا يوجد ${ROLE_AR[role]} مرتبط بتليجرام — الإشعار (${label||''}) لم يُرسل`); return 0; } us.forEach(u => send(u.telegram_id, text)); return us.length; }\nfunction notifyUser(userId, text){ const u = byId(db.users, userId); if (u && u.telegram_id){ send(u.telegram_id, text); return true; } NOTES.push(`${u?u.name:userId} غير مرتبط بتليجرام — لم يصله الإشعار`); return false; }\nfunction notifyCustomer(cust, text){ if (cust && cust.telegram_id){ send(cust.telegram_id, text); return true; } if (cust) NOTES.push(`${cust.company} غير مرتبط بتليجرام — لم يصله الإشعار`); return false; }\nconst money = n => fmtN(n,0)+' '+db.settings.currency;\n\n/* ---- identity ---- */\nconst actor = resolveActor(db, chatId, msg.from);\nconst conv = actor.conv || { id:chatId, phone:'', role:'', name:'', context:null, history:[] };\nlet ctx = conv.context && conv.context.flow ? conv.context : null;\nconst history = Array.isArray(conv.history) ? conv.history : [];\nconst greet = a => a.role==='customer' ? `أهلاً أستاذ ${firstName(a.name)} 👋` : STAFF(a.role) ? `أهلاً ${firstName(a.name)} 👋` : 'أهلاً بك 👋';\nlet intent = '', engine = 'rules', confidence = 0, success = true, denied = false, handoffMade = false; let reply = ''; let linkedPhone = conv.phone || actor.phone || '';\n\n/* =================== commands & linking =================== */\nfunction linkPhone(phone){\n  const p = normPhone(phone); if (!p) return `الرقم مش واضح. اكتبه بالشكل ده: +966501234567`;\n  const u = db.users.find(x=>x.phone===p); const c = db.customers.find(x=>x.phone===p);\n  if (!u && !c) return `الرقم ${p} مش مسجل عندنا كعميل ولا موظف.\\nلو محتاج خدمة اكتب \"عايز عرض سعر\" وهنسجلك كعميل جديد، أو تواصل مع الحسابات لربط رقمك.`;\n  if (u){ upsert('Users', { id:u.id, telegram_id:chatId, telegram_name: actor.tgName||'' }); linkedPhone = p; actor.role=u.role; actor.name=u.name; actor.id=u.id; actor.phone=p; actor.user=u; delete actor.customer; return `تم ربط حسابك ✅\\n*${u.name}* — ${u.title} (${ROLE_AR[u.role]})\\nاكتب \"مساعدة\" تشوف اللي تقدر تعمله.`; }\n  upsert('Customers', { id:c.id, telegram_id:chatId }); linkedPhone = p; actor.role='customer'; actor.name=c.name; actor.id=c.id; actor.phone=p; actor.customer=c; delete actor.user;\n  return `تم ربط حسابك ✅\\n*${c.company}* — ${c.name}\\nدلوقتي تقدر تسأل: \"عليا كام؟\" أو \"هات آخر فاتورة\".`;\n}\nconst cmd = raw.trim().match(/^\\/(\\w+)(?:@\\w+)?\\s*(.*)$/);\nif (!raw.trim() && !msg.contact){ intent='UNSUPPORTED'; reply = 'أقدر أتعامل مع الرسائل النصية بس حالياً 🙏 (الصوت والصور في مرحلة لاحقة).'; success=false; }\nelse if (msg.contact){ intent='LINK'; reply = linkPhone(msg.contact.phone_number); }\nelse if (cmd){\n  const c = cmd[1].toLowerCase(), arg = cmd[2];\n  if (c==='start'){ intent='START'; reply = `${greet(actor)}\\nأنا *${db.settings.botName}* — المساعد الذكي لـ${db.settings.companyName}.\\n${actor.linked ? `حسابك مرتبط بـ *${actor.name}* (${ROLE_AR[actor.role]}). اكتب طلبك مباشرة، مثلاً: \"عليا كام؟\"` : 'عشان أقدر أخدمك، ابعت رقم جوالك المسجل عندنا بالشكل ده:\\n+966501234567\\n\\n(للتجربة: أرقام العملاء والموظفين موجودة في شيت Customers و Users)'}`; }\n  else if (c==='link'){ intent='LINK'; reply = arg ? linkPhone(arg) : 'اكتب الرقم بعد الأمر: /link +966501234567'; }\n  else if (c==='unlink'){ intent='UNLINK'; if (actor.user) upsert('Users',{id:actor.user.id, telegram_id:''}); if (actor.customer) upsert('Customers',{id:actor.customer.id, telegram_id:''}); linkedPhone=''; ctx=null; reply='تم فك الربط. ابعت رقم تاني عشان تجرب دور مختلف.'; actor.role='unknown'; actor.name=actor.tgName||'—'; actor.id=null; actor.phone=''; delete actor.user; delete actor.customer; }\n  else if (c==='whoami'){ intent='WHOAMI'; reply = actor.linked ? `أنت *${actor.name}* — ${ROLE_AR[actor.role]}${actor.customer?' — '+actor.customer.company:''}\\nchat_id: ${chatId}` : `حسابك مش مرتبط. chat_id: ${chatId}\\nابعت رقم جوالك المسجل عشان نربطه.`; }\n  else if (c==='reset'){ intent='RESET'; ctx=null; reply='تم إلغاء أي طلب شغال. ابدأ من جديد 🙂'; }\n  else if (c==='help'){ intent='HELP'; reply = helpText(actor.role); }\n  else { intent='UNKNOWN_CMD'; reply='أمر مش معروف. الأوامر: /start /link /unlink /whoami /reset /help'; success=false; }\n}\nelse if (looksLikePhone(raw) && (!actor.linked || /^(true|1|yes)$/i.test(S_(cfg.allowRelink)))){ intent='LINK'; reply = linkPhone(raw); }\n\n/* =================== NLU =================== */\nlet nlu = null;\nif (!intent){\n  if (ai){ nlu = mergeAI(db, raw, ai); engine='ai'; }\n  else { nlu = ruleNLU(db, raw, ctx); engine = 'rules'; if (aiTried && actor.role === 'admin') NOTES.push('الـAI مش متاح مؤقتاً' + (/503|overload|demand/i.test(aiError) ? ' (ضغط على Gemini)' : /429|quota/i.test(aiError) ? ' (حد الاستخدام المجاني)' : '') + ' — اتردّ بمحرك القواعد'); }\n  intent = nlu.intent; confidence = nlu.confidence; nlu.entities._raw = raw;\n}\n\n/* =================== help / RBAC =================== */\nfunction helpText(role){\n  const L = { customer:['رصيدك الحالي (\"عليا كام؟\")','آخر فاتورة أو حالة فاتورة برقمها','قائمة فواتيرك المفتوحة وموعد الاستحقاق','مدفوعاتك وتسجيل تحويل جديد','كشف حساب','طلب عرض سعر لأي خدمة ومتابعته'],\n    sales:['بيانات عميل أو رصيده الإجمالي','إضافة عميل جديد أو فرصة (Lead)','إنشاء طلب تسعير لعميل','العروض المفتوحة ومتابعة العملاء اللي ما ردوش','تقرير مبيعات الأسبوع / الشهر'],\n    accountant:['رصيد أي عميل وكشف حسابه','الفواتير والمدفوعات وحالة أي فاتورة','تسجيل دفعة وإنشاء فاتورة (بموافقة)','مين عليه فلوس / المتأخرين','اعتماد الطلبات: \"اعتمد AP-3\" أو \"ارفض AP-3 السبب\" — \"الطلبات المعلقة\"'],\n    admin:['كل صلاحيات المبيعات والمحاسبة','اعتماد عروض الأسعار والفواتير: \"اعتمد AP-3\"','الرد على التحويلات البشرية: \"رد HO-2 النص\"','تقارير المبيعات والتحصيل'],\n    unknown:['طلب عرض سعر لخدمة (قص / كور / مسح / هدم / ترميم)','لو أنت عميل حالي: ابعت رقم جوالك المسجل عشان نربط حسابك'] }[role] || [];\n  return `أقدر أساعدك في:\\n${L.map(x=>'• '+x).join('\\n')}\\n\\nاكتب طلبك بشكل طبيعي وأنا هفهمه 🙂`;\n}\n\n/* =================== flows =================== */\nconst FLOWS = {\n  CREATE_QUOTATION:{ title:'طلب عرض سعر', slots:a => STAFF(a.role) ? ['customer','service','quantity','location','thickness'] : a.role==='unknown' ? ['person_name','company_text','service','quantity','location','thickness'] : ['service','quantity','location','thickness'] },\n  RECORD_PAYMENT:{ title:'تسجيل دفعة', slots:a => STAFF(a.role) ? ['customer','amount','payment_method','invoice_no'] : ['amount','payment_method','invoice_no'] },\n  CREATE_INVOICE:{ title:'إنشاء فاتورة', slots:()=>['customer','amount','description'] },\n  CREATE_CUSTOMER:{ title:'إضافة عميل', slots:()=>['company_text','person_name','phone'] },\n  CREATE_LEAD:{ title:'تسجيل فرصة', slots:()=>['person_name','phone','service','location'] },\n  NEED_CUSTOMER:{ title:'تحديد العميل', slots:()=>['customer'] },\n  NEED_INVOICE:{ title:'تحديد الفاتورة', slots:()=>['invoice_no'] },\n};\nconst SLOT_Q = { customer:'العميل مين؟ اكتب اسم الشركة أو اسم المسؤول.', service:'الخدمة المطلوبة إيه؟ (قص خرسانة / كور / مسح GPR / هدم / حقن شروخ / تقوية كربون / زرع أشاير / معالجة صدأ)', quantity:'الكمية التقريبية كام؟ (مثال: 20 متر، 50 نقطة، 300 م²)', location:'موقع العمل فين؟ (المدينة أو اسم المشروع)', thickness:'سمك الخرسانة كام سم؟ (لو مش متأكد اكتب \"مش عارف\")', amount:'المبلغ كام؟', payment_method:'طريقة الدفع؟ (تحويل بنكي / شيك / نقدي)', invoice_no:'رقم الفاتورة؟ (أو اكتب \"أقدم فاتورة\" عشان نخصمها من أقدم فاتورة مفتوحة)', description:'وصف الفاتورة / الأعمال؟', company_text:'اسم الشركة؟ (لو مفيش اكتب \"لا\")', person_name:'اسم المسؤول؟', phone:'رقم الجوال؟ (05xxxxxxxx)' };\nconst slotLabel = s => ({customer:'العميل',service:'الخدمة',quantity:'الكمية',location:'الموقع',thickness:'السمك',amount:'المبلغ',payment_method:'طريقة الدفع',invoice_no:'الفاتورة',description:'الوصف',company_text:'الشركة',person_name:'المسؤول',phone:'الجوال'})[s]||s;\nfunction fmtSlot(s,v){ if (v===null||v===undefined||v==='') return '—'; if (s==='customer') return customerName(db,v); if (s==='service'){ const p=db.productById(v); return p?p.name:v; } if (s==='quantity') return fmtN(v); if (s==='thickness') return v==='unknown'?'غير محدد':v+' سم'; if (s==='amount') return money(v); if (s==='invoice_no') return v==='oldest'?'أقدم فاتورة مفتوحة':'INV-'+v; return String(v); }\nfunction fillSlots(c, rawText, n, a){\n  const e = n.entities||{}; const fa = n.flow_answer||{}; const nn = norm(rawText);\n  const set = (k,v) => { if (v!==undefined && v!==null && v!=='') c.slots[k]=v; };\n  for (const [k,v] of Object.entries(fa)){ if (!c.all.includes(k)) continue;\n    if (k==='customer'){ const cc = findCustomerInText(db, norm(String(v))); if (cc) set('customer', cc.id); }\n    else if (k==='service'){ const p = matchProduct(db, String(v)); if (p) set('service', p.id); }\n    else if (k==='thickness'){ set('thickness', /مش عارف|غير معروف|unknown|لا اعرف|مش متاكد/.test(norm(String(v))) ? 'unknown' : (parseFloat(v)||undefined)); }\n    else if (k==='invoice_no'){ set('invoice_no', /اقدم|oldest|اي فاتوره/.test(norm(String(v))) ? 'oldest' : (parseInt(v)||undefined)); }\n    else if (k==='quantity'||k==='amount'){ set(k, parseFloat(v)||undefined); }\n    else if (k==='phone'){ set('phone', normPhone(v)||undefined); }\n    else set(k, String(v)); }\n  if (e.customer_id) set('customer', e.customer_id); if (e.service) set('service', e.service); if (e.quantity) set('quantity', e.quantity); if (e.unit) c.unit = e.unit;\n  if (e.location) set('location', e.location); else if (e.location_text) set('location', e.location_text);\n  if (e.thickness_cm) set('thickness', e.thickness_cm);\n  if (e.amount) set('amount', e.amount); else if (c.all.includes('amount') && c.slots.amount===undefined && e.numbers){ const cands = e.numbers.filter(x=>x!==e.invoice_no && x!==e.quotation_no && x!==e.quantity && x!==e.thickness_cm && x>=50); if (cands.length) set('amount', Math.max(...cands)); }\n  if (e.payment_method) set('payment_method', e.payment_method); if (e.invoice_no) set('invoice_no', e.invoice_no); if (e.reference) c.reference = e.reference;\n  if (e.phone) set('phone', e.phone); if (e.person_name) set('person_name', e.person_name); if (e.company_text) set('company_text', e.company_text);\n  const asked = c.asked;\n  if (asked && c.slots[asked]===undefined){ const num = (nn.match(/\\d+(?:\\.\\d+)?/)||[])[0];\n    if (asked==='quantity' && num) set('quantity', +num); else if (asked==='amount' && num) set('amount', +num);\n    else if (asked==='thickness'){ if (/مش عارف|معرفش|غير معروف|unknown|لا اعرف|مش متاكد|مش محدد/.test(nn)) set('thickness','unknown'); else if (num) set('thickness', +num); }\n    else if (asked==='invoice_no'){ if (/اقدم|oldest|اي فاتوره|اي واحده/.test(nn)) set('invoice_no','oldest'); else if (num && +num>=100) set('invoice_no', +num); }\n    else if (asked==='location' && rawText.trim().length>=2 && !num) set('location', rawText.trim());\n    else if (asked==='description' && rawText.trim().length>=2) set('description', rawText.trim());\n    else if (asked==='person_name' && rawText.trim().length>=2 && !num) set('person_name', rawText.trim());\n    else if (asked==='company_text' && rawText.trim().length>=1){ if (/^(لا|لأ|مفيش|بدون|فرد|شخصي|no)/.test(nn)) set('company_text','—'); else set('company_text', rawText.trim()); }\n    else if (asked==='customer'){ const cc = findCustomerInText(db, nn); if (cc) set('customer', cc.id); }\n    else if (asked==='service'){ const p = matchProduct(db, nn); if (p) set('service', p.id); }\n    else if (asked==='phone'){ const p = normPhone(rawText); if (p) set('phone', p); } }\n  if (c.slots.service){ const p = db.productById(c.slots.service); if (p && !['قص','كور','هدم'].includes(p.cat) && c.slots.thickness===undefined) c.slots.thickness='n/a'; }\n  c.missing = c.all.filter(k => c.slots[k]===undefined);\n}\nfunction startFlow(name, a, seed, rawText){ const f = FLOWS[name]; const all = f.slots(a); const c = { flow:name, all, slots:{}, missing:all.slice(), asked:null, confirming:false, intent:name, startedAt:new Date().toISOString() }; if (seed) fillSlots(c, rawText||'', seed, a); return c; }\nfunction nextQuestion(c){ const k = c.missing[0]; c.asked = k; const done = c.all.filter(s => c.slots[s]!==undefined && c.slots[s]!=='n/a').map(s => `• ${slotLabel(s)}: ${fmtSlot(s,c.slots[s])}`).join('\\n'); return (done ? 'تمام، سجلت:\\n'+done+'\\n\\n' : '') + (SLOT_Q[k]||('محتاج '+slotLabel(k)+'؟')); }\nfunction confirmSummary(c){ const lines = c.all.filter(s => c.slots[s]!=='n/a').map(s => `• ${slotLabel(s)}: ${fmtSlot(s,c.slots[s])}${s==='quantity'&&c.unit?' '+c.unit:''}`).join('\\n'); return `*ملخص ${FLOWS[c.flow].title}:*\\n${lines}\\n\\nأأكد الطلب؟ (نعم / لا)`; }\n\n/* =================== business helpers (writes) =================== */\nfunction quotationMessage(q, items){ return `📝 *عرض سعر ${q.id}*\\n${db.settings.companyName}\\nإلى: ${q.customerId?customerName(db,q.customerId):(q.contactName||'—')}\\n\\n${items.map(x=>`${x.name}\\n${fmtN(x.qty)} ${x.unit} × ${fmtN(x.price)} = ${fmtN(x.total)}`).join('\\n')}\\n\\nالإجمالي: ${fmtN(q.subtotal)}\\nضريبة القيمة المضافة ${db.settings.vat}%: ${fmtN(q.vat)}\\n*الصافي: ${money(q.total)}*\\nصالح حتى ${fmtDateAr(q.validUntil)}\\n\\nللموافقة اكتب \"موافق على ${q.id}\" أو تواصل مع مندوبك.`; }\nfunction createApproval(type, payload, a, approverRole){ const ap = { id: db.nextId('AP-', db.approvals, 1), type, payload, requestedBy:a.name, requestedByChat:chatId, requesterRole:a.role, approverRole, requestedAt:new Date().toISOString(), status:'pending' }; db.approvals.unshift(ap); append('Approvals', { id:ap.id, type, payload:JSON.stringify(payload), requested_by:a.name, requested_by_chat:chatId, requester_role:a.role, approver_role:approverRole, requested_at:ap.requestedAt, status:'pending', decided_by:'', decided_at:'', note:'', result:'' }); return ap; }\nfunction applyPayment(p, by){ const pay = { id: db.nextId('PAY-', db.payments, 3001), customerId:p.customerId, invoiceId:p.invoiceId||'', date:TODAY, amount:N(p.amount), method:p.method, reference:p.reference||('TG'+Date.now().toString().slice(-6)), recordedBy:by }; db.payments.unshift(pay); append('Payments', { id:pay.id, customer_id:pay.customerId, invoice_id:pay.invoiceId, date:pay.date, amount:pay.amount, method:pay.method, reference:pay.reference, recorded_by:by });\n  if (pay.invoiceId){ const inv = byId(db.invoices, pay.invoiceId); if (inv){ const applied = Math.min(inv.remaining, pay.amount); inv.paid += applied; inv.remaining -= applied; upsert('Invoices', { id:inv.id, paid:inv.paid, remaining:inv.remaining, status:invoiceStatus(inv) }); } } return pay; }\nfunction applyInvoice(p, by){ const amount = N(p.amount); const subtotal = Math.round(amount/(1+db.settings.vat/100)); const vat = amount-subtotal; const inv = { id: db.nextId('INV-', db.invoices, 1001), customerId:p.customerId, date:TODAY, dueDate:fmtDate(addDays(NOW,30)), project:p.description||'', items:'', subtotal, vat, amount, paid:0, remaining:amount, status:'unpaid', createdBy:by }; db.invoices.unshift(inv); append('Invoices', { id:inv.id, customer_id:inv.customerId, date:inv.date, due_date:inv.dueDate, project:inv.project, items:'', subtotal, vat, amount, paid:0, remaining:amount, status:'unpaid', created_by:by }); return inv; }\nfunction applyCustomer(p, by){ const c = { id: db.nextId('C-', db.customers, 1).replace(/^C-(\\d+)$/, (m,d)=>'C-'+d.padStart(3,'0')), company:p.company, core:S_(p.company).replace(/^(شركة|مؤسسة|شركه|مؤسسه)\\s+/,'').split(' ').slice(0,2).join(' '), name:p.name, phone:normPhone(p.phone), vat:'', city:'', creditLimit:50000, status:'active', salesRep:p.salesRep||'U-S1', telegram_id:'' }; db.customers.push(c); append('Customers', { id:c.id, company:c.company, core:c.core, contact_name:c.name, phone:c.phone, vat:'', city:'', credit_limit:50000, status:'active', sales_rep:c.salesRep, created_at:TODAY, telegram_id:'' }); return c; }\nfunction decideApproval(ap, approve, by, note){\n  ap.status = approve?'approved':'rejected'; ap.decidedBy = by; ap.decidedAt = new Date().toISOString(); ap.note = note||''; const p = ap.payload||{}; let result = '';\n  if (approve){\n    if (ap.type==='RECORD_PAYMENT'){ const pay = applyPayment(p, by); result = pay.id; const c = byId(db.customers,p.customerId); notifyCustomer(c, `✅ تم ترحيل دفعتك *${pay.id}*\\n${money(pay.amount)} — ${pay.method}${pay.invoiceId?' — على الفاتورة '+pay.invoiceId:''}\\nشكراً لسدادكم 🙏`); if (ap.requestedByChat && (!c || c.telegram_id!==ap.requestedByChat)) send(ap.requestedByChat, `✅ تم اعتماد طلبك ${ap.id} — الدفعة ${pay.id} اتسجلت.`); }\n    else if (ap.type==='CREATE_INVOICE'){ const inv = applyInvoice(p, by); result = inv.id; const c = byId(db.customers,p.customerId); notifyCustomer(c, `📄 تم إصدار فاتورة جديدة *${inv.id}* على حسابكم بقيمة ${money(inv.amount)}\\n${inv.project}\\nالاستحقاق: ${fmtDateAr(inv.dueDate)}`); if (ap.requestedByChat) send(ap.requestedByChat, `✅ تم اعتماد الفاتورة ${inv.id} (${ap.id}) بواسطة ${by}.`); }\n    else if (ap.type==='CREATE_CUSTOMER'){ const c = applyCustomer(p, by); result = c.id; if (ap.requestedByChat) send(ap.requestedByChat, `✅ تم اعتماد إضافة العميل ${c.company} — ${c.id}`); }\n    else if (ap.type==='SEND_QUOTATION'){ const q = byId(db.quotations, p.quotationId); if (q){ q.status='sent'; q.date=TODAY; q.validUntil=fmtDate(addDays(NOW,15)); result=q.id; upsert('Quotations', { id:q.id, status:'sent', date:q.date, valid_until:q.validUntil }); const items = db.expandItems(q.items); const text = quotationMessage(Object.assign({contactName:p.customer}, q), items); if (p.contactChat) send(p.contactChat, text); else { const c = byId(db.customers, q.customerId); notifyCustomer(c, text); } } }\n  } else {\n    if (ap.type==='SEND_QUOTATION'){ const q = byId(db.quotations, p.quotationId); if (q){ q.status='rejected'; upsert('Quotations', { id:q.id, status:'rejected' }); } }\n    if (ap.requestedByChat) send(ap.requestedByChat, `❌ تم رفض الطلب ${ap.id}${note?' — السبب: '+note:''}`);\n  }\n  upsert('Approvals', { id:ap.id, status:ap.status, decided_by:by, decided_at:ap.decidedAt, note:ap.note, result });\n  return result;\n}\nfunction executeFlow(c, a){\n  const s = c.slots; const needs = t => !!db.settings.approvals[t];\n  if (c.flow==='CREATE_QUOTATION'){\n    let customer = s.customer ? byId(db.customers, s.customer) : a.customer; let leadId = ''; const p = db.productById(s.service); const qty = N(s.quantity);\n    if (!customer){ const lead = { id: db.nextId('LD-', db.leads, 401) }; db.leads.unshift(lead); leadId = lead.id; append('Leads', { id:lead.id, date:TODAY, name:s.person_name||a.tgName||'—', phone:a.phone||'', company:s.company_text==='—'?'':(s.company_text||''), service:p.id, service_name:p.name, location:s.location||'', qty, unit:c.unit||p.unit, thickness:(s.thickness&&s.thickness!=='unknown'&&s.thickness!=='n/a')?s.thickness+' سم':'', status:'new', source:'telegram', assigned_to:'U-S1', telegram_id:chatId }); }\n    const items = [{ productId:p.id, name:p.name, unit:p.unit, qty, price:p.price, total:qty*p.price }]; const subtotal = sum(items,x=>x.total), vat = Math.round(subtotal*db.settings.vat/100);\n    const q = { id: db.nextId('QT-', db.quotations, 2001), customerId: customer?customer.id:'', leadId, contactPhone:a.phone||'', date:TODAY, validUntil:fmtDate(addDays(NOW,15)), items:`${p.id}x${qty}`, subtotal, vat, total:subtotal+vat, status: needs('SEND_QUOTATION')?'pending_approval':'sent', location:s.location||'', thickness:(s.thickness&&s.thickness!=='unknown'&&s.thickness!=='n/a')?s.thickness+' سم':'', notes:`طلب عبر تليجرام من ${a.name}`, requestedVia:'telegram', salesRep: customer?customer.salesRep:'U-S1', followUps:0 };\n    db.quotations.unshift(q); append('Quotations', { id:q.id, customer_id:q.customerId, lead_id:leadId, contact_phone:q.contactPhone, date:q.date, valid_until:q.validUntil, items:q.items, subtotal, vat, total:q.total, status:q.status, location:q.location, thickness:q.thickness, notes:q.notes, requested_via:'telegram', sales_rep:q.salesRep, follow_ups:0, last_follow_up:'' });\n    const who = customer ? customer.company : `${s.person_name||a.tgName||''} (عميل جديد — ${leadId})`;\n    notifyUser(q.salesRep, `🔔 طلب تسعير جديد *${q.id}*\\nمن: ${who}\\n${p.name}: ${fmtN(qty)} ${p.unit}${s.location?' — '+s.location:''}${q.thickness?' — سمك '+q.thickness:''}\\nالتسعير المبدئي: ${money(q.total)}`);\n    if (q.status==='pending_approval'){ const ap = createApproval('SEND_QUOTATION', { quotationId:q.id, customer:who, total:q.total, summary:`${p.name} × ${fmtN(qty)} ${p.unit}`, contactChat:chatId }, a, 'admin'); notifyRole('admin', `🔔 عرض سعر *${q.id}* بانتظار اعتمادك (${ap.id})\\n${who} — ${p.name} × ${fmtN(qty)} — ${money(q.total)}\\n\\nللاعتماد اكتب: اعتمد ${ap.id}\\nللرفض اكتب: ارفض ${ap.id} السبب`, ap.id);\n      return `تم تسجيل طلبك ✅\\nرقم الطلب: *${q.id}*\\n${p.name}: ${fmtN(qty)} ${p.unit}${s.location?'\\nالموقع: '+s.location:''}\\n\\nعرض السعر بيتراجع من قسم التسعير وهيوصلك هنا بمجرد اعتماده 📎`; }\n    return quotationMessage(Object.assign({contactName: s.person_name||''}, q), items);\n  }\n  if (c.flow==='RECORD_PAYMENT'){\n    const customer = s.customer ? byId(db.customers, s.customer) : a.customer; let inv = null;\n    if (s.invoice_no && s.invoice_no!=='oldest') inv = db.invoices.find(i=>i.id==='INV-'+s.invoice_no);\n    if (!inv) inv = customerInvoices(db, customer.id).filter(i=>i.remaining>0).sort((x,y)=> x.dueDate<y.dueDate?-1:1)[0] || null;\n    if (inv && inv.customerId!==customer.id){ delete c.slots.invoice_no; c.confirming=false; c.missing=['invoice_no']; c.asked='invoice_no'; return { reopen:true, text:`الفاتورة ${inv.id} مش على حساب ${customer.company} 🔒\\nابعت رقم فاتورة صحيح، أو اكتب \"أقدم فاتورة\".` }; }\n    const payload = { customerId:customer.id, customer:customer.company, amount:N(s.amount), method:s.payment_method, invoiceId: inv?inv.id:'', reference:c.reference||'', reportedBy:a.name };\n    if (needs('RECORD_PAYMENT')){ const role = a.role==='accountant'?'admin':'accountant'; const ap = createApproval('RECORD_PAYMENT', payload, a, role); notifyRole(role, `🔔 طلب تسجيل دفعة *${ap.id}*\\n${customer.company}: ${money(payload.amount)} — ${payload.method}${inv?' — '+inv.id:''}\\nمن: ${a.name}\\n\\nللاعتماد اكتب: اعتمد ${ap.id}`, ap.id);\n      return `تم استلام بيانات الدفعة ✅\\nالعميل: ${customer.company}\\nالمبلغ: ${money(payload.amount)} — ${payload.method}${inv?'\\nالفاتورة: '+inv.id:''}\\n\\nالدفعة *بانتظار مراجعة ${ROLE_AR[role]}* (${ap.id}) وهنبلغك بمجرد ترحيلها.`; }\n    const pay = applyPayment(payload, a.name); return `تم ترحيل الدفعة ✅ *${pay.id}*\\n${money(pay.amount)} — ${pay.method}${pay.invoiceId?' — على '+pay.invoiceId:''}`;\n  }\n  if (c.flow==='CREATE_INVOICE'){\n    const customer = byId(db.customers, s.customer); const payload = { customerId:customer.id, customer:customer.company, amount:N(s.amount), description:s.description, requestedBy:a.name };\n    if (needs('CREATE_INVOICE') || payload.amount >= db.settings.approvalThreshold){ const role = a.role==='accountant'?'admin':'accountant'; const ap = createApproval('CREATE_INVOICE', payload, a, role); notifyRole(role, `🔔 مسودة فاتورة *${ap.id}* تحتاج اعتمادك\\n${customer.company} — ${money(payload.amount)}\\n${s.description}\\nمن: ${a.name}\\n\\nللاعتماد اكتب: اعتمد ${ap.id}`, ap.id);\n      return `تم إنشاء *مسودة فاتورة* لـ ${customer.company} بقيمة ${money(payload.amount)} (${ap.id}).\\nالفاتورة مش هتصدر غير بعد اعتماد ${ROLE_AR[role]} ✋`; }\n    const inv = applyInvoice(payload, a.name); return `تم إصدار الفاتورة ✅ *${inv.id}* لـ ${customer.company} بقيمة ${money(inv.amount)}`;\n  }\n  if (c.flow==='CREATE_CUSTOMER'){\n    const payload = { company:s.company_text, name:s.person_name, phone:s.phone, salesRep: a.role==='sales'?a.id:'U-S1', requestedBy:a.name };\n    if (needs('CREATE_CUSTOMER')){ const ap = createApproval('CREATE_CUSTOMER', payload, a, 'admin'); notifyRole('admin', `🔔 طلب إضافة عميل *${ap.id}*: ${payload.company} — ${payload.name} — ${payload.phone}\\nمن: ${a.name}\\nللاعتماد اكتب: اعتمد ${ap.id}`, ap.id); return `تم تسجيل طلب إضافة العميل *${s.company_text}* (${ap.id}) وبانتظار اعتماد المدير.`; }\n    const cu = applyCustomer(payload, a.name); return `تم إضافة العميل ✅\\n*${cu.company}* — ${cu.id}\\nالمسؤول: ${cu.name} — ${cu.phone}\\nلما يبعت رقمه للبوت هيتربط تلقائياً كعميل.`;\n  }\n  if (c.flow==='CREATE_LEAD'){ const p = db.productById(s.service); const lead = { id: db.nextId('LD-', db.leads, 401) }; db.leads.unshift(lead); append('Leads', { id:lead.id, date:TODAY, name:s.person_name, phone:normPhone(s.phone)||S_(s.phone), company:'', service:p.id, service_name:p.name, location:s.location||'', qty:'', unit:p.unit, thickness:'', status:'new', source:'telegram', assigned_to: a.role==='sales'?a.id:'U-S1', telegram_id:'' }); return `تم تسجيل الفرصة ✅ *${lead.id}*\\n${s.person_name} — ${s.phone}\\n${p.name} — ${s.location||''}`; }\n  return 'تم.';\n}\n\n/* =================== read handlers =================== */\nconst H = {};\nfunction needCustomer(a,e){ if (e.customer_id) return byId(db.customers, e.customer_id); if (a.role==='customer') return a.customer; return null; }\nconst invLine = i => { const st = invoiceStatus(i); return `• ${i.id} — ${fmtDateAr(i.date)} — ${money(i.amount)} — ${STATUS_AR[st]}${i.remaining>0?` (متبقي ${money(i.remaining)})`:''}`; };\nH.GREETING = a => ({ reply:`${greet(a)}\\nأنا *${db.settings.botName}* — المساعد الذكي لـ${db.settings.companyName}.\\n${a.role==='unknown'?'حسابك مش مرتبط — ابعت رقم جوالك المسجل، أو اكتب \"عايز عرض سعر\".':'اكتب طلبك مباشرة، مثلاً: \"عليا كام؟\" أو \"هات آخر فاتورة\".'}` });\nH.THANKS = () => ({ reply:'العفو 🌹 تحت أمرك في أي وقت.' });\nH.HELP = a => ({ reply: helpText(a.role) });\nH.CUSTOMER_BALANCE = (a,e) => { const c = needCustomer(a,e); if (!c) return { askCustomer:true }; const b = customerBalance(db,c.id); if (a.role==='sales') return { reply:`*${c.company}*\\nالرصيد المستحق: ${money(b.remaining)}${b.overdue>0?` (متأخر: ${money(b.overdue)})`:''}\\nحد الائتمان: ${money(c.creditLimit)}` }; let t = `${a.role==='customer'?greet(a):'*'+c.company+'*'}\\nإجمالي الفواتير: ${money(b.total)}\\nالمدفوع: ${money(b.paid)}\\n*المتبقي: ${money(b.remaining)}*`; if (b.overdue>0) t += `\\n⚠️ منها متأخر عن الاستحقاق: ${money(b.overdue)}`; return { reply:t }; };\nH.LAST_INVOICE = (a,e) => { const c = needCustomer(a,e); if (!c) return { askCustomer:true }; if (a.role==='sales') return { reply:'تفاصيل الفواتير من صلاحيات المحاسبة. تقدر تطلب الرصيد الإجمالي للعميل بس.', denied:true }; const inv = customerInvoices(db,c.id).slice().sort((x,y)=>x.date<y.date?1:-1)[0]; if (!inv) return { reply:`مفيش فواتير مسجلة على ${c.company} لحد دلوقتي.` }; const items = db.expandItems(inv.items); const st = invoiceStatus(inv); return { reply:`آخر فاتورة على *${c.company}*:\\n📄 *${inv.id}* — ${fmtDateAr(inv.date)}\\nالمشروع: ${inv.project}\\n${items.length?'البنود:\\n'+items.map(x=>`  - ${x.name}: ${fmtN(x.qty)} ${x.unit} × ${fmtN(x.price)}`).join('\\n')+'\\n':''}الإجمالي شامل الضريبة: *${money(inv.amount)}*\\nالمدفوع: ${money(inv.paid)} — المتبقي: ${money(inv.remaining)}\\nالحالة: ${STATUS_AR[st]} — الاستحقاق ${fmtDateAr(inv.dueDate)}\\n📎 ${inv.id}.pdf (يُرفق في نسخة الإنتاج)` }; };\nfunction findInvoice(a,e){ if (!e.invoice_no) return { ask:true }; const inv = db.invoices.find(i=>i.id==='INV-'+e.invoice_no); if (!inv) return { reply:`مش لاقي فاتورة برقم ${e.invoice_no}. اتأكد من الرقم وابعته تاني.` }; if (a.role==='customer' && inv.customerId!==a.customer.id) return { reply:`الفاتورة ${inv.id} مش مسجلة على حسابك، فمش هقدر أعرض تفاصيلها 🔒`, denied:true }; if (a.role==='sales') return { reply:'تفاصيل الفواتير من صلاحيات المحاسبة.', denied:true }; return { inv }; }\nH.INVOICE_STATUS = (a,e) => { const r = findInvoice(a,e); if (r.ask) return { askInvoice:true }; if (!r.inv) return r; const inv = r.inv, st = invoiceStatus(inv); const pays = db.payments.filter(p=>p.invoiceId===inv.id); let t = `📄 *${inv.id}* — ${customerName(db,inv.customerId)}\\nالقيمة: ${money(inv.amount)}\\nالحالة: *${STATUS_AR[st]}*`; if (pays.length) t += `\\nالمدفوعات:\\n${pays.map(p=>`  - ${fmtDateAr(p.date)}: ${money(p.amount)} (${p.method})`).join('\\n')}`; t += inv.remaining>0 ? `\\nالمتبقي: ${money(inv.remaining)} — الاستحقاق ${fmtDateAr(inv.dueDate)}${st==='overdue'?` (متأخرة ${daysBetween(inv.dueDate,NOW)} يوم)`:''}` : '\\n✅ مسددة بالكامل'; return { reply:t }; };\nH.INVOICE_DUE_DATE = (a,e) => { if (!e.invoice_no && a.role==='customer'){ const open = customerInvoices(db,a.customer.id).filter(i=>i.remaining>0).sort((x,y)=>x.dueDate<y.dueDate?-1:1); if (!open.length) return { reply:'مفيش فواتير مفتوحة على حسابك 🎉' }; return { reply:`مواعيد استحقاق فواتيرك المفتوحة:\\n${open.slice(0,6).map(i=>`• ${i.id}: ${fmtDateAr(i.dueDate)} — متبقي ${money(i.remaining)}${i.dueDate<TODAY?' ⚠️ متأخرة':''}`).join('\\n')}` }; } const r = findInvoice(a,e); if (r.ask) return { askInvoice:true }; if (!r.inv) return r; const inv = r.inv; const d = daysBetween(NOW, inv.dueDate); return { reply:`📄 ${inv.id} — تاريخ الاستحقاق: *${fmtDateAr(inv.dueDate)}*\\n${inv.remaining<=0?'✅ الفاتورة مسددة بالكامل.': d>=0?`باقي ${d} يوم على الاستحقاق. المتبقي ${money(inv.remaining)}.`:`⚠️ متأخرة ${-d} يوم. المتبقي ${money(inv.remaining)}.`}` }; };\nH.LIST_INVOICES = (a,e) => { const c = needCustomer(a,e); if (!c) return { askCustomer:true }; if (a.role==='sales') return { reply:'قائمة الفواتير من صلاحيات المحاسبة. تقدر تطلب الرصيد الإجمالي للعميل.', denied:true }; let list = customerInvoices(db,c.id).sort((x,y)=>x.date<y.date?1:-1); const openOnly = e.invoice_filter==='open' || /مفتوح|غير مدفوع|مش مدفوع|متبقي|المستحقه|اللي عليا/.test(norm(e._raw||'')); if (openOnly) list = list.filter(i=>i.remaining>0); if (!list.length) return { reply: openOnly?`مفيش فواتير مفتوحة على ${c.company} 🎉`:`مفيش فواتير مسجلة على ${c.company}.` }; const shown = list.slice(0,8); return { reply:`${openOnly?'الفواتير المفتوحة':'آخر الفواتير'} على *${c.company}* (${list.length}):\\n${shown.map(invLine).join('\\n')}${list.length>8?`\\n… و${list.length-8} فاتورة أخرى. اطلب \"كشف حساب\" للتفاصيل.`:''}\\n\\n*إجمالي المتبقي: ${money(sum(list,i=>i.remaining))}*` }; };\nH.PAYMENT_SEARCH = (a,e) => { const c = needCustomer(a,e); if (!c) return { askCustomer:true }; if (a.role==='sales') return { reply:'المدفوعات من صلاحيات المحاسبة.', denied:true }; const pays = db.payments.filter(p=>p.customerId===c.id).sort((x,y)=>x.date<y.date?1:-1); if (!pays.length) return { reply:`مفيش مدفوعات مسجلة على ${c.company} لحد دلوقتي.` }; return { reply:`آخر مدفوعات *${c.company}*:\\n${pays.slice(0,5).map(p=>`• ${fmtDateAr(p.date)} — ${money(p.amount)} — ${p.method} — ${p.invoiceId} (مرجع ${p.reference})`).join('\\n')}\\n\\nإجمالي المدفوع: *${money(sum(pays,p=>p.amount))}*` }; };\nH.STATEMENT = (a,e) => { const c = needCustomer(a,e); if (!c) return { askCustomer:true }; if (a.role==='sales') return { reply:'كشف الحساب من صلاحيات المحاسبة.', denied:true }; const rws = []; customerInvoices(db,c.id).forEach(i=>rws.push({d:i.date,doc:i.id,debit:i.amount,credit:0})); db.payments.filter(p=>p.customerId===c.id).forEach(p=>rws.push({d:p.date,doc:p.id,debit:0,credit:p.amount})); rws.sort((x,y)=>x.d<y.d?-1:1); let bal=0; rws.forEach(r=>{bal+=r.debit-r.credit; r.bal=bal;}); const last = rws.slice(-8); return { reply:`📑 *كشف حساب ${c.company}*\\nحتى ${fmtDateAr(NOW)}\\n\\n${last.map(r=>`${r.d} | ${r.doc} | ${r.debit?'مدين '+fmtN(r.debit):'دائن '+fmtN(r.credit)} | رصيد ${fmtN(r.bal)}`).join('\\n')}\\n\\n*الرصيد النهائي: ${money(bal)}*\\n(آخر 8 حركات — الكشف الكامل PDF في نسخة الإنتاج)` }; };\nH.QUOTATION_STATUS = (a,e) => { let q = null; if (e.quotation_no) q = db.quotations.find(x=>x.id==='QT-'+e.quotation_no); else if (a.role==='customer') q = db.quotations.filter(x=>x.customerId===a.customer.id).sort((x,y)=>x.date<y.date?1:-1)[0]; else if (e.customer_id) q = db.quotations.filter(x=>x.customerId===e.customer_id).sort((x,y)=>x.date<y.date?1:-1)[0]; if (!q) return { reply: e.quotation_no?`مش لاقي عرض سعر برقم ${e.quotation_no}.`:'مش لاقي عروض أسعار على حسابك. تحب تطلب عرض سعر جديد؟' }; if (a.role==='customer' && q.customerId!==a.customer.id) return { reply:`عرض السعر ${q.id} مش مسجل على حسابك 🔒`, denied:true }; const items = db.expandItems(q.items); const stMsg = { draft:'لسه بيتجهز', pending_approval:'بانتظار اعتماد التسعير — هيوصلك خلال وقت قصير', sent:'مرسل ومنتظرين ردكم', accepted:'مقبول ✅ وتم فتح أمر شغل', rejected:'مرفوض', expired:'انتهت صلاحيته — نقدر نجدده لو تحب' }[q.status]||q.status; return { reply:`📝 *${q.id}* — ${q.customerId?customerName(db,q.customerId):'عميل جديد'}\\n${items.map(x=>`${x.name}: ${fmtN(x.qty)} ${x.unit}`).join('\\n')}\\nالإجمالي: ${q.status==='pending_approval'||q.status==='draft'?'(بعد الاعتماد)':money(q.total)}\\nالحالة: *${STATUS_AR[q.status]||q.status}* — ${stMsg}\\nصالح حتى ${fmtDateAr(q.validUntil)}` }; };\nH.OPEN_QUOTATIONS = () => { const list = db.quotations.filter(q=>q.status==='sent'||q.status==='pending_approval').sort((x,y)=>x.date<y.date?1:-1); if (!list.length) return { reply:'مفيش عروض أسعار مفتوحة حالياً.' }; return { reply:`عروض الأسعار المفتوحة (${list.length}):\\n${list.slice(0,10).map(q=>`• ${q.id} — ${q.customerId?customerName(db,q.customerId):'عميل جديد'} — ${money(q.total)} — ${STATUS_AR[q.status]} — من ${daysBetween(q.date,NOW)} يوم`).join('\\n')}${list.length>10?`\\n… و${list.length-10} عرض آخر`:''}\\n\\nإجمالي القيمة: *${money(sum(list,q=>q.total))}*` }; };\nH.FOLLOW_UP = (a) => { const stale = db.quotations.filter(q=>q.status==='sent' && daysBetween(q.date,NOW)>=db.settings.followUpDays); if (!stale.length) return { reply:`كل العروض المرسلة لسه جديدة (أقل من ${db.settings.followUpDays} أيام). مفيش حاجة تحتاج متابعة دلوقتي.` }; const targets = stale.slice(0,8); let sent=0, skipped=0; targets.forEach(q => { const c = byId(db.customers,q.customerId); const items = db.expandItems(q.items); upsert('Quotations', { id:q.id, follow_ups:(q.followUps||0)+1, last_follow_up:TODAY }); if (c && c.telegram_id){ send(c.telegram_id, `أهلاً أستاذ ${firstName(c.name)} 👋\\nبنذكّر حضرتك بعرض السعر *${q.id}* (${items[0]?items[0].name:''} — ${money(q.total)}) المرسل بتاريخ ${fmtDateAr(q.date)}.\\nلو في أي استفسار أو تعديل قولنا وإحنا جاهزين 🙏`); sent++; } else skipped++; }); return { reply:`تم تسجيل متابعة لـ *${targets.length}* عرض سعر عدّى عليها أكتر من ${db.settings.followUpDays} أيام بدون رد:\\n${targets.map(q=>`• ${q.id} — ${q.customerId?customerName(db,q.customerId):'عميل جديد'} — ${daysBetween(q.date,NOW)} يوم`).join('\\n')}\\n\\nاتبعت رسالة تذكير فعلاً لـ ${sent} عميل مرتبط بتليجرام${skipped?`، و${skipped} عميل غير مرتبط (في الإنتاج هتتبعت واتساب تلقائياً)`:''}.` }; };\nH.SALES_REPORT = (a,e) => { const period = e.period==='month'?30:7; const from = fmtDate(addDays(NOW,-period)); const q = db.quotations.filter(x=>x.date>=from), acc = q.filter(x=>x.status==='accepted'); const leads = db.leads.filter(x=>x.date>=from), orders = db.orders.filter(x=>x.date>=from); const inv = db.invoices.filter(x=>x.date>=from), pays = db.payments.filter(x=>x.date>=from); return { reply:`📊 *تقرير المبيعات — آخر ${period} يوم*\\n\\nفرص جديدة (Leads): ${leads.length}\\nعروض أسعار: ${q.length} بقيمة ${money(sum(q,x=>x.total))}\\nعروض مقبولة: ${acc.length} بقيمة ${money(sum(acc,x=>x.total))}\\nنسبة القبول: ${q.length?Math.round(acc.length/q.length*100):0}%\\nأوامر شغل: ${orders.length}\\n\\nفواتير صادرة: ${inv.length} بقيمة ${money(sum(inv,x=>x.amount))}\\nتحصيلات: ${pays.length} دفعة بقيمة ${money(sum(pays,x=>x.amount))}` }; };\nH.WHO_OWES = (a,e) => { const days = e.days || db.settings.overdueDays; const cut = fmtDate(addDays(NOW,-days)); const map = {}; db.invoices.forEach(i => { if (i.remaining>0 && i.dueDate<=cut){ const m = map[i.customerId] = map[i.customerId]||{amt:0,n:0,oldest:i.dueDate}; m.amt+=i.remaining; m.n++; if (i.dueDate<m.oldest) m.oldest=i.dueDate; } }); const rws = Object.entries(map).map(([cid,v])=>({cid,...v})).sort((x,y)=>y.amt-x.amt); if (!rws.length) return { reply:`مفيش عملاء متأخرين أكتر من ${days} يوم 🎉` }; return { reply:`العملاء المتأخرين أكتر من *${days} يوم* (${rws.length} عميل):\\n${rws.slice(0,10).map((r,i)=>`${i+1}. ${customerName(db,r.cid)} — *${money(r.amt)}* — ${r.n} فاتورة — أقدم استحقاق ${fmtDateAr(r.oldest)}`).join('\\n')}${rws.length>10?`\\n… و${rws.length-10} عميل آخر`:''}\\n\\n*إجمالي المتأخر: ${money(sum(rws,r=>r.amt))}*` }; };\nH.CUSTOMER_SEARCH = (a,e) => { const c = e.customer_id ? byId(db.customers,e.customer_id) : null; if (!c) return (e.customer_name||e.company_text) ? { reply:`مش لاقي عميل باسم \"${e.customer_name||e.company_text}\". جرّب اسم الشركة بدون \"شركة/مؤسسة\" أو اسم المسؤول.` } : { askCustomer:true }; const b = customerBalance(db,c.id); const rep = byId(db.users,c.salesRep); let t = `👤 *${c.company}* (${c.id})\\nالمسؤول: ${c.name}\\nالجوال: ${c.phone}\\nالمدينة: ${c.city||'—'}\\nالرقم الضريبي: ${c.vat||'—'}\\nحد الائتمان: ${money(c.creditLimit)}\\nالحالة: ${STATUS_AR[c.status]||c.status}\\nمندوب المبيعات: ${rep?rep.name:'—'}\\nتليجرام: ${c.telegram_id?'مرتبط ✅':'غير مرتبط'}`; t += `\\nالرصيد المستحق: ${money(b.remaining)}${a.role!=='sales'?` (${b.count} فاتورة)`:''}`; return { reply:t }; };\nH.CREATE_QUOTATION = () => ({ startFlow:'CREATE_QUOTATION' }); H.RECORD_PAYMENT = () => ({ startFlow:'RECORD_PAYMENT' }); H.CREATE_INVOICE = () => ({ startFlow:'CREATE_INVOICE' }); H.CREATE_CUSTOMER = () => ({ startFlow:'CREATE_CUSTOMER' }); H.CREATE_LEAD = () => ({ startFlow:'CREATE_LEAD' });\nH.LIST_APPROVALS = (a) => { const list = db.approvals.filter(x=>x.status==='pending' && (a.role==='admin' || x.approverRole===a.role)); if (!list.length) return { reply:'مفيش طلبات معلقة تخصك دلوقتي ✅' }; const T = { CREATE_INVOICE:'إصدار فاتورة', RECORD_PAYMENT:'ترحيل دفعة', CREATE_CUSTOMER:'إضافة عميل', SEND_QUOTATION:'عرض سعر' }; return { reply:`الطلبات المعلقة (${list.length}):\\n${list.map(x=>`• *${x.id}* — ${T[x.type]||x.type} — ${x.payload.customer||x.payload.company||''} — ${x.payload.amount?money(x.payload.amount):x.payload.total?money(x.payload.total):''} — من ${x.requestedBy}`).join('\\n')}\\n\\nللاعتماد: اعتمد AP-رقم — للرفض: ارفض AP-رقم السبب` }; };\nH.APPROVE = (a,e) => decideCmd(a,e,true); H.REJECT = (a,e) => decideCmd(a,e,false);\nfunction decideCmd(a,e,approve){ const id = e.ref_id; const ap = id ? db.approvals.find(x=>x.id===id) : null; if (!ap) return { reply:`مش لاقي طلب برقم ${id||'؟'}. اكتب \"الطلبات المعلقة\" تشوف الأرقام.` }; if (ap.status!=='pending') return { reply:`الطلب ${ap.id} اتقفل قبل كده (${STATUS_AR[ap.status]||ap.status} بواسطة ${ap.decidedBy}).` }; if (!(a.role==='admin' || ap.approverRole===a.role)) return { reply:`الطلب ${ap.id} يعتمده ${ROLE_AR[ap.approverRole]} مش ${ROLE_AR[a.role]} 🔒`, denied:true }; const note = S_(e._raw).replace(/^\\s*(اعتمد|اعتماد|وافق|ارفض|رفض|approve|reject)\\s*/i,'').replace(/\\s*(ap|AP)[-\\s]?\\d+\\s*/,'').trim(); const result = decideApproval(ap, approve, a.name, approve?'':note); return { reply: approve ? `✅ تم اعتماد ${ap.id}${result?' — '+result:''}. اتبعت إشعار لصاحب الطلب.` : `❌ تم رفض ${ap.id}${note?' — '+note:''}.` }; }\nH.HUMAN_REPLY = (a,e) => { const h = e.ref_id ? db.handoffs.find(x=>x.id===e.ref_id) : null; if (!h) return { reply:`مش لاقي تحويل برقم ${e.ref_id||'؟'}.` }; const text = S_(e._raw).replace(/^\\s*(رد|reply)\\s*/i,'').replace(/\\s*(ho|HO)[-\\s]?\\d+\\s*/,'').trim(); if (!text) return { reply:'اكتب الرد بعد الرقم: رد HO-1 نص الرد' }; send(h.chatId, `👤 رد من ${a.name}:\\n${text}`); upsert('Handoffs', { id:h.id, status:'resolved', reply:text }); return { reply:`اتبعت الرد لصاحب ${h.id} ✅` }; };\nH.UNKNOWN = (a) => ({ handoff:'intent غير مفهوم', reply:'مش متأكد إني فهمت طلبك بالظبط 🙏\\nحوّلت رسالتك لزميلنا وهيرد عليك في أقرب وقت.\\n\\nأو اكتب \"مساعدة\" عشان تشوف اللي أقدر أعمله.' });\n\nfunction runIntent(it, a, ents){\n  const allowed = (PERMS[a.role]||[]).includes(it);\n  if (!allowed){ denied = true; if (a.role==='unknown') return { reply:`حسابك مش مرتبط بعميل مسجل، فمش هقدر أعرض بيانات حسابات 🔒\\n\\n• لو أنت عميل حالي: ابعت رقم جوالك المسجل (مثال: +966501234567).\\n• لو محتاج خدمة: اكتب \"عايز عرض سعر\" وأنا هساعدك.`, denied:true }; return { reply:`الطلب ده (${INTENT_AR[it]||it}) خارج صلاحيات ${ROLE_AR[a.role]} 🔒\\nلو محتاجه اتواصل مع ${/INVOICE|PAYMENT|STATEMENT|WHO_OWES/.test(it)?'المحاسب':'المدير'}.`, denied:true }; }\n  const h = H[it] || H.UNKNOWN; let res = h(a, ents);\n  if (res.askCustomer){ ctx = startFlow('NEED_CUSTOMER', a); ctx.intent = it; ctx.entities = ents; ctx.asked='customer'; return { reply: ents.customer_name ? `مش لاقي عميل باسم \"${ents.customer_name}\". اكتب اسم الشركة زي ما هو مسجل.` : SLOT_Q.customer }; }\n  if (res.askInvoice){ ctx = startFlow('NEED_INVOICE', a); ctx.intent = it; ctx.entities = ents; ctx.asked='invoice_no'; return { reply:'رقم الفاتورة كام؟ (مثال: 1023)' }; }\n  if (res.startFlow){ ctx = startFlow(res.startFlow, a, { entities:ents, flow_answer:null }, raw); if (ctx.missing.length) return { reply: nextQuestion(ctx) }; ctx.confirming = true; return { reply: confirmSummary(ctx) }; }\n  return res;\n}\n\n/* =================== main pipeline =================== */\nlet result = null;\nif (!reply && nlu){\n  if (ctx && ctx.flow && (intent==='FLOW_ANSWER'||intent==='CONFIRM'||intent==='DENY'||intent==='CANCEL'||ctx.flow==='NEED_CUSTOMER'||ctx.flow==='NEED_INVOICE')){\n    if (intent==='CANCEL' || (intent==='DENY' && ctx.confirming)){ result = { reply: intent==='CANCEL' ? 'تم إلغاء الطلب. لو احتجت حاجة تانية أنا موجود 🙂' : 'تمام، ألغيت الطلب. اكتب الطلب من جديد بالبيانات الصحيحة.' }; ctx = null; }\n    else if (intent==='CONFIRM' && ctx.confirming){ const r = executeFlow(ctx, actor); if (r && r.reopen){ result = { reply:r.text }; } else { result = { reply:r }; ctx = null; } }\n    else if (ctx.flow==='NEED_CUSTOMER' || ctx.flow==='NEED_INVOICE'){ fillSlots(ctx, raw, nlu, actor); if (ctx.missing.length) result = { reply: ctx.flow==='NEED_CUSTOMER' ? 'مش لاقي عميل بالاسم ده. اكتب اسم الشركة زي ما هو مسجل (مثال: النخيل، الأفق).' : 'محتاج رقم الفاتورة (مثال: 1023).' }; else { const orig = ctx; intent = orig.intent; const ents = Object.assign({}, nlu.entities, orig.entities||{}); if (orig.slots.customer) ents.customer_id = orig.slots.customer; if (orig.slots.invoice_no) ents.invoice_no = orig.slots.invoice_no; ctx = null; result = runIntent(intent, actor, ents); } }\n    else { fillSlots(ctx, raw, nlu, actor); if (ctx.missing.length) result = { reply: nextQuestion(ctx) }; else { ctx.confirming = true; ctx.asked = null; result = { reply: confirmSummary(ctx) }; } }\n    if (ctx===null || (ctx && ctx.intent)) { /* log under the flow's intent */ if (intent==='FLOW_ANSWER'||intent==='CONFIRM'||intent==='DENY'||intent==='CANCEL') intent = (result && result._it) || (conv.context && conv.context.intent) || intent; }\n  } else {\n    if (ctx && ctx.flow && !['GREETING','THANKS','HELP'].includes(intent)) ctx = null;\n    if (intent==='CONFIRM'||intent==='DENY'||intent==='FLOW_ANSWER'){ intent='UNKNOWN'; }\n    if (intent==='CANCEL') result = { reply:'مفيش طلب شغال حالياً عشان ألغيه. اكتب طلبك وأنا جاهز 🙂' };\n    else result = runIntent(intent, actor, nlu.entities);\n  }\n  reply = result.reply; if (result.denied) denied = true;\n  if (result.handoff){ const h = { id: db.nextId('HO-', db.handoffs, 1) }; db.handoffs.unshift(h); handoffMade = true; append('Handoffs', { id:h.id, ts:new Date().toISOString(), chat_id:chatId, actor:actor.name, role:actor.role, message:raw, reason:result.handoff, status:'open', reply:'' }); notifyRole('admin', `🙋 تحويل بشري *${h.id}*\\nمن: ${actor.name} (${ROLE_AR[actor.role]}) — chat ${chatId}\\nالرسالة: \"${raw}\"\\nالسبب: ${result.handoff}\\n\\nللرد اكتب: رد ${h.id} نص الرد`, h.id); }\n  if (intent==='UNKNOWN') success = false;\n}\n\n/* =================== reply, state, log =================== */\nif (reply) send(chatId, reply);\nif (NOTES.length && STAFF(actor.role)) send(chatId, 'ℹ️ ' + NOTES.join('\\nℹ️ '));\nconst hist = history.concat([{ dir:'out', text:raw.slice(0,300), ts:new Date().toISOString() }, { dir:'in', text:S_(reply).slice(0,300), ts:new Date().toISOString() }]).slice(-8);\nupsert('Conversations', { id:chatId, phone:linkedPhone, role:actor.role, name:actor.name, context: ctx ? JSON.stringify(ctx) : '', history: JSON.stringify(hist), last_message: raw.slice(0,200), updated_at: new Date().toISOString() });\nappend('RequestLog', { id:'RQ-'+Date.now(), ts:new Date().toISOString(), chat_id:chatId, role:actor.role, actor:actor.name, text:raw.slice(0,200), intent, engine, confidence, success: success && !denied ? 'TRUE':'FALSE', denied: denied?'TRUE':'FALSE', handoff: handoffMade?'TRUE':'FALSE', latency_ms: Date.now()-T0 });\nreturn OUT.map(j => ({ json: j }));\n"
+      },
+      "id": "hesabo-106",
+      "name": "HESABO Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k0",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "msg",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "msg"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k1",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "upsert:Conversations",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "upsert:Conversations"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k2",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "append:RequestLog",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "append:RequestLog"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k3",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "append:Approvals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "append:Approvals"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k4",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "upsert:Approvals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "upsert:Approvals"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k5",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "append:Quotations",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "append:Quotations"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k6",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "upsert:Quotations",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "upsert:Quotations"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k7",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "append:Payments",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "append:Payments"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k8",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "append:Invoices",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "append:Invoices"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k9",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "upsert:Invoices",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "upsert:Invoices"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k10",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "append:Customers",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "append:Customers"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k11",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "upsert:Customers",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "upsert:Customers"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k12",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "upsert:Users",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "upsert:Users"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k13",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "append:Leads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "append:Leads"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k14",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "append:Handoffs",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "append:Handoffs"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "k15",
+                    "leftValue": "={{ $json._kind }}",
+                    "rightValue": "upsert:Handoffs",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "upsert:Handoffs"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "hesabo-107",
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "hesabo-108",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1560,
+        -700
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Telegram"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Conversations",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-109",
+      "name": "Upsert Conversations",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -570
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "RequestLog",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-110",
+      "name": "Append RequestLog",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -440
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Approvals",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-111",
+      "name": "Append Approvals",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -310
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Approvals",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-112",
+      "name": "Upsert Approvals",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -180
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Quotations",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-113",
+      "name": "Append Quotations",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        -50
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Quotations",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-114",
+      "name": "Upsert Quotations",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        80
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Payments",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-115",
+      "name": "Append Payments",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        210
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Invoices",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-116",
+      "name": "Append Invoices",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        340
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Invoices",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-117",
+      "name": "Upsert Invoices",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        470
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Customers",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-118",
+      "name": "Append Customers",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        600
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Customers",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-119",
+      "name": "Upsert Customers",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        730
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Users",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-120",
+      "name": "Upsert Users",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        860
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-121",
+      "name": "Append Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        990
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Handoffs",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-122",
+      "name": "Append Handoffs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        1120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Handoffs",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": []
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "hesabo-123",
+      "name": "Upsert Handoffs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        1250
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "HESABO Google Sheets"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "## HESABO — Telegram MVP (Phase 1)\n**المسار:** Telegram → قراءة الشيتات → Build AI Prompt → Gemini (اختياري) → HESABO Engine → Route → Telegram / Google Sheets\n\n**قبل التشغيل:**\n1. اربط Credentials: *HESABO Telegram* (توكن البوت) و *HESABO Google Sheets* (OAuth).\n2. افتح Config وحط مفتاح Gemini (أو سيب aiMode = rules).\n3. فعّل الـWorkflow (Active) وابعت /start للبوت.\n\n**الربط بالبيانات:** ابعت رقم جوال مسجل في شيت Customers أو Users — مثلاً +966501234567 (عميل) أو +966500000001 (المدير).",
+        "height": 320,
+        "width": 520,
+        "color": 4
+      },
+      "id": "hesabo-124",
+      "name": "README",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1400,
+        -120
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Load Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Sheets": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "Use AI?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use AI?": {
+      "main": [
+        [
+          {
+            "node": "Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HESABO Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "main": [
+        [
+          {
+            "node": "HESABO Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HESABO Engine": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append RequestLog",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Approvals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Approvals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Quotations",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Quotations",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Payments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Customers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Customers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Users",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  },
+  "staticData": null,
+  "tags": [],
+  "id": null
+}

@@ -1,0 +1,1770 @@
+<title>HESABO Simulator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Cairo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f2f5f1; --surface:#ffffff; --surface-2:#eaf0ea; --surface-3:#dfe7df;
+  --border:#d5ddd6; --text:#16211c; --text-2:#4f5c56; --muted:#84908a;
+  --accent:#0e8577; --accent-ink:#ffffff; --accent-soft:#d9f0ec; --accent-soft-ink:#075f55;
+  --good:#0ca30c; --good-ink:#006300; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+  --good-soft:#e2f5e2; --warn-soft:#fff2d6; --serious-soft:#fde6dc; --crit-soft:#fbe1e1;
+  --wa-bg:#e4ddd4; --wa-out:#d9fdd3; --wa-in:#ffffff; --wa-head:#075e54; --wa-head-ink:#ffffff; --wa-tick:#4fb3ff;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  --grid:#e1e0d9; --axis:#c3c2b7;
+  --shadow:0 1px 2px rgba(22,33,28,.06),0 4px 14px rgba(22,33,28,.06);
+  --font:'IBM Plex Sans Arabic','Segoe UI',system-ui,-apple-system,sans-serif;
+  --display:'Cairo','IBM Plex Sans Arabic',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f1412; --surface:#171d1a; --surface-2:#1e2622; --surface-3:#28322d;
+    --border:#2c3731; --text:#e5ebe7; --text-2:#aab5ae; --muted:#7c877f;
+    --accent:#3ab5a4; --accent-ink:#06201c; --accent-soft:#163a35; --accent-soft-ink:#8fdccf;
+    --good-ink:#0ca30c;
+    --good-soft:#153a15; --warn-soft:#3d3010; --serious-soft:#3f2418; --crit-soft:#3d1a1a;
+    --wa-bg:#0b141a; --wa-out:#005c4b; --wa-in:#202c33; --wa-head:#1f2c34; --wa-head-ink:#e9edef;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+    --grid:#2c2c2a; --axis:#383835;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f1412; --surface:#171d1a; --surface-2:#1e2622; --surface-3:#28322d;
+  --border:#2c3731; --text:#e5ebe7; --text-2:#aab5ae; --muted:#7c877f;
+  --accent:#3ab5a4; --accent-ink:#06201c; --accent-soft:#163a35; --accent-soft-ink:#8fdccf;
+  --good-ink:#0ca30c;
+  --good-soft:#153a15; --warn-soft:#3d3010; --serious-soft:#3f2418; --crit-soft:#3d1a1a;
+  --wa-bg:#0b141a; --wa-out:#005c4b; --wa-in:#202c33; --wa-head:#1f2c34; --wa-head-ink:#e9edef;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --grid:#2c2c2a; --axis:#383835;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.35);
+}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.55;direction:rtl}
+*{box-sizing:border-box}
+h1,h2,h3,h4{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.3}
+h1{font-size:22px;font-weight:800}
+h2{font-size:18px;font-weight:700}
+h3{font-size:15px;font-weight:700}
+p{margin:0}
+a{color:var(--accent)}
+button{font-family:inherit;font-size:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.mono{font-family:var(--mono);font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.t2{color:var(--text-2)}
+.small{font-size:12px}
+.hidden{display:none!important}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:236px minmax(0,1fr);height:100%}
+.nav{background:var(--surface);border-inline-start:1px solid var(--border);display:flex;flex-direction:column;padding:14px 12px;gap:4px;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.brand .logo{width:38px;height:38px;border-radius:11px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:18px}
+.brand .name{font-family:var(--display);font-weight:800;font-size:17px;line-height:1.1}
+.brand .sub{font-size:11px;color:var(--muted)}
+.nav-group{font-size:11px;letter-spacing:.06em;color:var(--muted);padding:10px 10px 4px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--text-2);text-decoration:none;border:0;background:none;width:100%;text-align:start}
+.nav-item:hover{background:var(--surface-2);color:var(--text)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent-soft-ink);font-weight:600}
+.nav-item .ic{width:20px;text-align:center;font-size:15px;flex:none}
+.nav-item .badge{margin-inline-start:auto;background:var(--crit);color:#fff;font-size:11px;border-radius:999px;padding:1px 7px;min-width:20px;text-align:center;font-variant-numeric:tabular-nums}
+.nav-item .badge.zero{display:none}
+.main{display:flex;flex-direction:column;min-width:0;height:100%;overflow:hidden}
+.topbar{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap}
+.topbar h1{font-size:19px}
+.topbar .spacer{flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);white-space:nowrap}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.pill.ok .dot{background:var(--good)} .pill.warn .dot{background:var(--warn)} .pill.bad .dot{background:var(--crit)}
+.content{padding:20px;overflow:auto;flex:1;min-height:0}
+.content > * + *{margin-top:16px}
+
+/* ---------- generic ---------- */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.card.tight{padding:12px}
+.card-h{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.card-h h2,.card-h h3{flex:1}
+.grid{display:grid;gap:14px}
+.grid.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:600}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.good{background:var(--good-soft);border-color:transparent;color:var(--good-ink)}
+.btn.danger{background:var(--crit-soft);border-color:transparent;color:var(--crit)}
+.btn.sm{padding:5px 10px;font-size:12.5px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;background:var(--surface-2);color:var(--text-2);white-space:nowrap}
+.tag.good{background:var(--good-soft);color:var(--good-ink)}
+.tag.warn{background:var(--warn-soft);color:#7a5200}
+.tag.serious{background:var(--serious-soft);color:#8a3a1a}
+.tag.crit{background:var(--crit-soft);color:var(--crit)}
+.tag.info{background:var(--accent-soft);color:var(--accent-soft-ink)}
+:root[data-theme="dark"] .tag.warn,:root:not([data-theme="light"]) .tag.warn{color:#fab219}
+:root[data-theme="dark"] .tag.serious{color:#ec835a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tag.serious{color:#ec835a}}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.stat .lbl{font-size:12px;color:var(--muted);margin-bottom:4px}
+.stat .val{font-family:var(--display);font-size:24px;font-weight:800;line-height:1.1}
+.stat .sub{font-size:12px;color:var(--text-2);margin-top:4px}
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px 12px;text-align:start;border-bottom:1px solid var(--border);white-space:nowrap}
+th{background:var(--surface-2);color:var(--text-2);font-weight:600;font-size:12px;position:sticky;top:0;z-index:1}
+tbody tr:hover{background:var(--surface-2)}
+tbody tr:last-child td{border-bottom:0}
+td.num,th.num{font-variant-numeric:tabular-nums;text-align:end}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.toolbar input[type=search]{min-width:220px}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+pre.json{background:var(--surface-2);border-radius:8px;padding:10px;font-family:var(--mono);font-size:12px;direction:ltr;text-align:left;overflow:auto;margin:0;white-space:pre-wrap;word-break:break-word}
+.toast{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));inset-inline-start:20px;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;box-shadow:var(--shadow);z-index:50;font-weight:600;opacity:0;transform:translateY(8px);transition:.25s}
+.toast.show{opacity:1;transform:none}
+.drawer{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;justify-content:flex-start;z-index:40}
+.drawer .panel{width:min(560px,100%);background:var(--surface);height:100%;overflow:auto;padding:20px;box-shadow:var(--shadow)}
+.drawer .panel > * + *{margin-top:14px}
+.callout{padding:12px 14px;border-radius:8px;background:var(--accent-soft);color:var(--accent-soft-ink);font-size:13px}
+.callout.warn{background:var(--warn-soft);color:#7a5200}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .callout.warn{color:#fab219}}
+:root[data-theme="dark"] .callout.warn{color:#fab219}
+.steps-list{display:grid;gap:8px}
+.check{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+label.chk{display:flex;gap:8px;align-items:center;cursor:pointer}
+.field{display:grid;gap:4px}
+.field label{font-size:12px;color:var(--text-2);font-weight:600}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+svg text{font-family:var(--font)}
+
+/* ---------- chat ---------- */
+.chat-layout{display:grid;grid-template-columns:400px minmax(0,1fr);gap:16px;align-items:start}
+.sender-box{display:grid;gap:8px;margin-bottom:12px}
+.phone{border-radius:30px;border:9px solid #1a1f1d;background:var(--wa-bg);height:660px;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow);position:relative}
+.phone .wa-head{background:var(--wa-head);color:var(--wa-head-ink);padding:12px 14px;display:flex;align-items:center;gap:10px}
+.phone .wa-head .av{width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:800}
+.phone .wa-head .nm{font-weight:700;font-size:14px;line-height:1.2}
+.phone .wa-head .st{font-size:11px;opacity:.85}
+.wa-msgs{flex:1;overflow:auto;padding:12px 10px;display:flex;flex-direction:column;gap:6px;background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:14px 14px}
+.bubble{max-width:86%;padding:7px 10px 5px;border-radius:9px;font-size:13.5px;line-height:1.5;box-shadow:0 1px 1px rgba(0,0,0,.08);white-space:pre-wrap;word-break:break-word;position:relative}
+.bubble.out{align-self:flex-end;background:var(--wa-out);border-start-end-radius:2px}
+.bubble.in{align-self:flex-start;background:var(--wa-in);border-start-start-radius:2px}
+.bubble.in.notif-b{border-inline-start:3px solid var(--s2)}
+.bubble.in.human{border-inline-start:3px solid var(--s7)}
+.bubble .who{font-size:10.5px;color:var(--s2);font-weight:700;margin-bottom:2px}
+.bubble.in.human .who{color:var(--s7)}
+.typing{align-self:flex-start}
+.bubble.sys{align-self:center;background:var(--surface-2);color:var(--text-2);font-size:12px;border-radius:8px;box-shadow:none;max-width:92%;text-align:center}
+.bubble .meta{display:flex;gap:6px;justify-content:flex-end;align-items:center;font-size:10.5px;color:var(--muted);margin-top:2px}
+.bubble .meta .tick{color:var(--wa-tick)}
+.bubble .attach{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.05);border-radius:6px;padding:6px 8px;margin-top:4px;font-size:12.5px}
+.bubble .attach .ico{font-size:20px}
+.bubble .btns{display:grid;gap:4px;margin-top:6px}
+.bubble .btns button{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px;color:var(--accent);font-weight:600}
+.typing{align-self:flex-end;background:var(--wa-in);border-radius:9px;padding:8px 12px;font-size:12px;color:var(--muted)}
+.wa-compose{display:flex;gap:6px;padding:8px;background:var(--surface-2);align-items:center}
+.wa-compose input{flex:1;border-radius:20px;padding:9px 14px;font-size:14px}
+.wa-compose button{width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--accent-ink);border:0;font-size:16px;flex:none}
+.quick{display:flex;gap:6px;overflow-x:auto;padding:6px 8px 2px;background:var(--surface-2);scrollbar-width:thin}
+.quick button{white-space:nowrap;border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--text-2)}
+.quick button:hover{color:var(--accent);border-color:var(--accent)}
+.trace-h{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.trace{display:grid;gap:8px}
+.step{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:10px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:start}
+.step .no{width:24px;height:24px;border-radius:50%;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;font-size:12px;font-weight:700}
+.step.ok .no{background:var(--good-soft);color:var(--good-ink)}
+.step.warn .no{background:var(--warn-soft);color:#7a5200}
+.step.bad .no{background:var(--crit-soft);color:var(--crit)}
+.step .ttl{font-weight:700}
+.step .dur{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.step .det{grid-column:2 / span 2;font-size:12.5px;color:var(--text-2)}
+.step .det pre{margin-top:6px}
+.step details summary{cursor:pointer;color:var(--accent);font-size:12px}
+.notif{border-inline-start:3px solid var(--s2);padding:8px 10px;background:var(--surface-2);border-radius:6px;font-size:12.5px;display:grid;gap:2px}
+.notif b{color:var(--text)}
+.engine-switch{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.engine-switch button{border:0;background:var(--surface);padding:6px 10px;font-size:12px;color:var(--text-2)}
+.engine-switch button.on{background:var(--accent);color:var(--accent-ink);font-weight:700}
+
+/* ---------- approvals ---------- */
+.appr{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:14px;display:grid;gap:10px}
+.appr .hd{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.appr .hd .ty{font-weight:700}
+.appr .body{background:var(--surface-2);border-radius:8px;padding:10px}
+
+/* ---------- tests ---------- */
+.prog{height:8px;background:var(--surface-2);border-radius:999px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+.res-ok{color:var(--good-ink);font-weight:700}
+.res-bad{color:var(--crit);font-weight:700}
+
+/* ---------- guide ---------- */
+.flow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-family:var(--mono);font-size:12px}
+.flow span{padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2)}
+.flow em{font-style:normal;color:var(--muted)}
+.prose{max-width:72ch;line-height:1.8}
+.prose > * + *{margin-top:10px}
+.prose ul,.prose ol{margin:0;padding-inline-start:22px}
+.prose li{margin:4px 0}
+
+@media (max-width:980px){
+  .app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .nav{flex-direction:row;overflow-x:auto;padding:8px;border-inline-start:0;border-bottom:1px solid var(--border);align-items:center}
+  .brand{border:0;margin:0;padding:4px 8px}
+  .brand .sub{display:none}
+  .nav-group{display:none}
+  .nav-item{width:auto;white-space:nowrap;padding:6px 10px}
+  .chat-layout{grid-template-columns:1fr}
+  .grid.c4,.grid.c3{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .phone{height:600px}
+}
+@media (max-width:560px){
+  .content{padding:14px 16px}
+  .grid.c4,.grid.c3,.grid.c2{grid-template-columns:1fr}
+  .phone{height:560px;border-width:6px}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app" id="app">
+  <nav class="nav" id="nav">
+    <div class="brand">
+      <div class="logo">ح</div>
+      <div><div class="name">HESABO</div><div class="sub">AI WhatsApp Accounting · Simulator</div></div>
+    </div>
+    <div class="nav-group">التشغيل</div>
+    <button class="nav-item" data-screen="chat"><span class="ic">💬</span>محاكي واتساب</button>
+    <button class="nav-item" data-screen="approvals"><span class="ic">✅</span>الموافقات<span class="badge zero" id="badge-approvals">0</span></button>
+    <button class="nav-item" data-screen="inbox"><span class="ic">🙋</span>تدخل بشري<span class="badge zero" id="badge-inbox">0</span></button>
+    <button class="nav-item" data-screen="dashboard"><span class="ic">📊</span>لوحة المتابعة</button>
+    <div class="nav-group">النظام المحاسبي (افتراضي)</div>
+    <button class="nav-item" data-screen="customers"><span class="ic">👥</span>العملاء</button>
+    <button class="nav-item" data-screen="invoices"><span class="ic">🧾</span>الفواتير</button>
+    <button class="nav-item" data-screen="payments"><span class="ic">💳</span>المدفوعات</button>
+    <button class="nav-item" data-screen="quotations"><span class="ic">📝</span>عروض الأسعار</button>
+    <button class="nav-item" data-screen="leads"><span class="ic">🧲</span>الفرص والأوامر</button>
+    <button class="nav-item" data-screen="products"><span class="ic">🛠️</span>الخدمات والأسعار</button>
+    <div class="nav-group">التحقق والقياس</div>
+    <button class="nav-item" data-screen="tests"><span class="ic">🧪</span>اختبار السيناريوهات</button>
+    <button class="nav-item" data-screen="kpi"><span class="ic">📈</span>مؤشرات الأداء</button>
+    <button class="nav-item" data-screen="audit"><span class="ic">📜</span>سجل العمليات</button>
+    <div class="nav-group">المرجع</div>
+    <button class="nav-item" data-screen="guide"><span class="ic">📘</span>دليل التجربة</button>
+    <button class="nav-item" data-screen="settings"><span class="ic">⚙️</span>الإعدادات</button>
+  </nav>
+  <div class="main">
+    <div class="topbar">
+      <h1 id="screen-title">محاكي واتساب</h1>
+      <span class="spacer"></span>
+      <span class="pill" id="ai-pill"><span class="dot"></span><span id="ai-pill-txt">جاري فحص محرك الـAI…</span></span>
+      <span class="pill" id="data-pill"><span class="dot"></span><span id="data-pill-txt">بيانات افتراضية</span></span>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+/* =====================================================================
+   HESABO Simulator — Part 1: utilities, seed data, store
+   ===================================================================== */
+'use strict';
+document.documentElement.dir = 'rtl';
+document.documentElement.lang = 'ar';
+
+const TODAY = new Date(); TODAY.setHours(12,0,0,0);
+const DAY = 86400000;
+const STORE_KEY = 'hesabo-sim-v1';
+
+/* ---------- small helpers ---------- */
+const $ = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN = (n, d=0) => Number(n||0).toLocaleString('en-US',{minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtMoney = n => fmtN(n, 0) + ' ' + (S.settings.currency || 'ريال');
+const fmtDate = d => { const x = new Date(d); return x.toISOString().slice(0,10); };
+const fmtDateAr = d => { const x = new Date(d); return x.toLocaleDateString('ar-EG-u-nu-latn',{day:'numeric',month:'short',year:'numeric'}); };
+const fmtTime = d => new Date(d).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+const daysBetween = (a,b) => Math.round((new Date(b) - new Date(a))/DAY);
+const addDays = (d,n) => new Date(new Date(d).getTime() + n*DAY);
+const uid = () => Math.random().toString(36).slice(2,9);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const sum = (arr, f) => arr.reduce((t,x)=> t + (f ? f(x) : x), 0);
+const byId = (arr, id) => arr.find(x => x.id === id);
+const pick = (rng, arr) => arr[Math.floor(rng()*arr.length)];
+const firstName = n => String(n||'').trim().split(/\s+/)[0] || '';
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); }
+
+/* deterministic PRNG so "reset" always gives the same demo world */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+/* ---------- static catalog ---------- */
+const PRODUCTS = [
+  {id:'P-01', name:'قص خرسانة بالمنشار (Wall Saw)', cat:'قص', unit:'م.ط', price:180, vat:15, keys:['قص','منشار','wall saw','cutting']},
+  {id:'P-02', name:'قص خرسانة بالسلك (Wire Saw)', cat:'قص', unit:'م²', price:650, vat:15, keys:['سلك','واير','wire']},
+  {id:'P-03', name:'قص أرضيات (Floor Saw)', cat:'قص', unit:'م.ط', price:120, vat:15, keys:['ارضيات','ارضيه','floor']},
+  {id:'P-04', name:'كور خرسانة قطر 100 مم', cat:'كور', unit:'نقطة', price:250, vat:15, keys:['كور','كورينج','coring','تخريم','ثقب']},
+  {id:'P-05', name:'كور خرسانة قطر 150 مم', cat:'كور', unit:'نقطة', price:350, vat:15, keys:[]},
+  {id:'P-06', name:'كور خرسانة قطر 200 مم', cat:'كور', unit:'نقطة', price:480, vat:15, keys:[]},
+  {id:'P-07', name:'مسح خرسانة بالرادار GPR', cat:'مسح', unit:'م²', price:45, vat:15, keys:['مسح','سكان','رادار','gpr','scan','جي بي ار']},
+  {id:'P-08', name:'هدم وتكسير خرسانة', cat:'هدم', unit:'م³', price:900, vat:15, keys:['هدم','تكسير','demolition']},
+  {id:'P-09', name:'حقن شروخ إيبوكسي', cat:'ترميم', unit:'م.ط', price:220, vat:15, keys:['حقن','شروخ','شرخ','epoxy','injection']},
+  {id:'P-10', name:'تقوية بألياف الكربون CFRP', cat:'ترميم', unit:'م.ط', price:380, vat:15, keys:['كربون','cfrp','تقويه','تدعيم','الياف']},
+  {id:'P-11', name:'زرع أشاير كيميائي', cat:'ترميم', unit:'عدد', price:35, vat:15, keys:['اشاير','اشاره','انكور','زرع','anchor','dowel']},
+  {id:'P-12', name:'معالجة صدأ حديد التسليح', cat:'ترميم', unit:'م²', price:160, vat:15, keys:['صدا','صدأ','rust','معالجه']},
+];
+const CITIES = ['الرياض','جدة','المدينة المنورة','مكة','الدمام','الخبر','القصيم','تبوك','أبها','جازان','ينبع','الطائف','حائل','الجبيل'];
+const ROLES = {
+  customer:{label:'عميل', color:'s1'},
+  sales:{label:'مبيعات', color:'s2'},
+  accountant:{label:'محاسب', color:'s3'},
+  admin:{label:'مدير', color:'s7'},
+  unknown:{label:'رقم غير معروف', color:'s8'},
+};
+
+/* ---------- seed generator ---------- */
+function generateSeed(){
+  const rng = mulberry32(20260928);
+  const firsts = ['أحمد','محمد','خالد','فهد','سعود','عبدالله','عمر','يوسف','سلطان','ماجد','نواف','تركي','بندر','فيصل','ياسر','طارق','حسام','عادل','إبراهيم','وليد','سامي','راشد','مشعل','عبدالرحمن','هاني'];
+  const lasts = ['العتيبي','القحطاني','الغامدي','الشهري','الزهراني','الحربي','المطيري','الدوسري','السبيعي','العنزي','الشمري','البقمي','الجهني','الأحمدي','المالكي','الرشيدي','السلمي','الثقفي','الجعفري','العمري'];
+  const cores = ['النخيل','الأفق','الرواد','البناء الحديث','الصفوة','الإتقان','المستقبل','الريادة','الأصالة','التميز','الجودة','الرمال','الواحة','الينابيع','الجبل','السواحل','الأمانة','الإنجاز','الفجر','النور','الطموح','البيان','الوفاء','الرؤية','العمران','الهدف','الأركان','الأساس','الركن المتين','البنيان','الميزان','الديرة','الخليج','المنار','السند','الصقر','الحصن','البرج','القمة','الشروق','الغروب','المسار','الدرب','الفارس','الحقيقة','النهضة','التقدم','الإعمار','الوطن','الأرض','المدار','الشعاع','الرافد','السنابل','الغد','الأمل','الهلال','النجم','البدر','القلعة','الحوض','المنارة','البوابة','السد','الجسر','الرافعة','الصخرة','الحجر','الوادي','السهل','المرج','الظل','الضوء','الروضة','المدينة','الشرق','الغرب','الشمال','الجنوب','الوسط','المركز','الفريق','الشركاء','الإخوة','الأبناء','العائلة','الجيل','القرن','الحقبة','العصر','الزمان','المكان','الميدان','الساحة','الحديقة','البستان','الغابة','الربيع','الصيف','الخريف'];
+  const suffix = ['للمقاولات','للمقاولات العامة','للتطوير العقاري','للإنشاءات','للتجارة والمقاولات','للصيانة والتشغيل','للاستثمار','للتعمير'];
+  const kinds = ['شركة','شركة','شركة','مؤسسة'];
+
+  const customers = [];
+  for (let i=0;i<100;i++){
+    const core = cores[i];
+    const company = `${pick(rng,kinds)} ${core} ${pick(rng,suffix)}`;
+    const contact = `${pick(rng,firsts)} ${pick(rng,lasts)}`;
+    const phone = '+9665' + String(10000000 + Math.floor(rng()*89999999));
+    customers.push({
+      id:'C-'+String(i+1).padStart(3,'0'), company, core, name:contact, phone,
+      vat:'3' + String(Math.floor(rng()*1e14)).padStart(14,'0'),
+      city: pick(rng,CITIES), creditLimit: pick(rng,[50000,100000,150000,250000,500000]),
+      status:'active', salesRep: rng()<0.5 ? 'U-S1' : 'U-S2', createdAt: fmtDate(addDays(TODAY, -Math.floor(rng()*700)-30)),
+    });
+  }
+  // a few memorable customers first for the demo
+  Object.assign(customers[0], {company:'شركة النخيل للمقاولات', core:'النخيل', name:'أحمد العتيبي', phone:'+966501234567', city:'الرياض', creditLimit:250000});
+  Object.assign(customers[1], {company:'شركة الأفق للتطوير العقاري', core:'الأفق', name:'خالد الغامدي', phone:'+966559876543', city:'جدة', creditLimit:500000});
+  Object.assign(customers[2], {company:'مؤسسة الرواد للإنشاءات', core:'الرواد', name:'فهد الشهري', phone:'+966533311222', city:'المدينة المنورة', creditLimit:100000});
+  Object.assign(customers[3], {company:'شركة البناء الحديث للمقاولات', core:'البناء الحديث', name:'سعود القحطاني', phone:'+966544455666', city:'الدمام', creditLimit:150000});
+  customers[7].status = 'blocked';
+
+  const users = [
+    {id:'U-A1', name:'AK', role:'admin', phone:'+966500000001', title:'مدير النظام / مدير التسعير'},
+    {id:'U-S1', name:'خالد العمري', role:'sales', phone:'+966500000011', title:'مندوب مبيعات'},
+    {id:'U-S2', name:'سامي الحربي', role:'sales', phone:'+966500000012', title:'مندوب مبيعات'},
+    {id:'U-C1', name:'أحمد الشمري', role:'accountant', phone:'+966500000021', title:'محاسب'},
+  ];
+
+  // invoices
+  const invoices = [];
+  let invNo = 1001;
+  for (let i=0;i<500;i++){
+    const c = customers[Math.floor(rng()*rng()*100)]; // skew: some customers have many invoices
+    const date = addDays(TODAY, -Math.floor(rng()*365)-1);
+    const items = [];
+    const nItems = 1 + Math.floor(rng()*3);
+    for (let k=0;k<nItems;k++){
+      const p = pick(rng, PRODUCTS);
+      const qty = p.unit==='نقطة'||p.unit==='عدد' ? 5+Math.floor(rng()*60) : p.unit==='م³' ? 2+Math.floor(rng()*20) : 10+Math.floor(rng()*150);
+      items.push({productId:p.id, name:p.name, unit:p.unit, qty, price:p.price, total: qty*p.price});
+    }
+    const subtotal = sum(items, x=>x.total);
+    const vat = Math.round(subtotal*0.15);
+    const amount = subtotal + vat;
+    invoices.push({ id:'INV-'+(invNo++), customerId:c.id, date:fmtDate(date), dueDate:fmtDate(addDays(date,30)), project: pick(rng,['مشروع برج','فيلا','مجمع سكني','مستودع','نفق','جسر','مبنى إداري','مصنع']) + ' — ' + c.city, items, subtotal, vat, amount, paid:0, remaining:amount, status:'unpaid', createdBy:'system' });
+  }
+  invoices.sort((a,b)=> a.date < b.date ? -1 : 1);
+  invoices.forEach((inv,i)=> inv.id = 'INV-' + (1001+i));
+
+  // payments
+  const payments = [];
+  let payNo = 3001;
+  const methods = ['تحويل بنكي','تحويل بنكي','تحويل بنكي','شيك','نقدي'];
+  invoices.forEach(inv => {
+    const age = daysBetween(inv.date, TODAY);
+    const r = rng();
+    let mode = 'none';
+    if (age > 60) mode = r < 0.72 ? 'full' : r < 0.85 ? 'partial' : 'none';
+    else if (age > 30) mode = r < 0.45 ? 'full' : r < 0.6 ? 'partial' : 'none';
+    else mode = r < 0.2 ? 'full' : r < 0.3 ? 'partial' : 'none';
+    if (mode === 'none') return;
+    const payDate = addDays(inv.date, 5 + Math.floor(rng()*50));
+    if (payDate > TODAY) return;
+    const amt = mode === 'full' ? inv.remaining : Math.round(inv.amount * (0.3 + rng()*0.4) / 100) * 100;
+    payments.push({ id:'PAY-'+(payNo++), customerId:inv.customerId, invoiceId:inv.id, date:fmtDate(payDate), amount:amt, method:pick(rng,methods), reference:'TRX' + Math.floor(100000+rng()*900000), recordedBy:'system' });
+    inv.paid += amt; inv.remaining = inv.amount - inv.paid;
+  });
+  payments.sort((a,b)=> a.date < b.date ? -1 : 1);
+  payments.forEach((p,i)=> p.id = 'PAY-' + (3001+i));
+
+  // quotations
+  const quotations = [];
+  const qStatuses = ['sent','sent','sent','accepted','accepted','rejected','expired','draft'];
+  for (let i=0;i<120;i++){
+    const c = customers[Math.floor(rng()*100)];
+    const date = addDays(TODAY, -Math.floor(rng()*180));
+    const p = pick(rng, PRODUCTS);
+    const qty = p.unit==='نقطة'||p.unit==='عدد' ? 5+Math.floor(rng()*60) : 10+Math.floor(rng()*200);
+    const items = [{productId:p.id, name:p.name, unit:p.unit, qty, price:p.price, total:qty*p.price}];
+    const subtotal = sum(items, x=>x.total), vat = Math.round(subtotal*0.15);
+    quotations.push({ id:'QT-'+(2001+i), customerId:c.id, date:fmtDate(date), validUntil:fmtDate(addDays(date,15)), items, subtotal, vat, total:subtotal+vat, status: pick(rng,qStatuses), location:c.city, notes:'', requestedVia: rng()<0.4?'whatsapp':'email', salesRep:c.salesRep, followUps:0 });
+  }
+  quotations.sort((a,b)=> a.date < b.date ? -1 : 1);
+  quotations.forEach((q,i)=> q.id = 'QT-' + (2001+i));
+
+  // leads
+  const leads = [];
+  const lStatuses = ['new','new','contacted','quoted','won','lost'];
+  for (let i=0;i<40;i++){
+    const p = pick(rng, PRODUCTS);
+    leads.push({ id:'LD-'+(401+i), name: pick(rng,firsts)+' '+pick(rng,lasts), phone:'+9665' + String(10000000 + Math.floor(rng()*89999999)), company: rng()<0.6 ? pick(rng,kinds)+' '+pick(rng,cores.slice(60))+' '+pick(rng,suffix) : '', service:p.id, serviceName:p.name, location:pick(rng,CITIES), qty: 10+Math.floor(rng()*100), unit:p.unit, thickness: pick(rng,['','20 سم','30 سم','40 سم']), date:fmtDate(addDays(TODAY,-Math.floor(rng()*90))), status:pick(rng,lStatuses), source:pick(rng,['whatsapp','call','website','referral']), assignedTo: rng()<0.5?'U-S1':'U-S2' });
+  }
+
+  // orders from accepted quotations
+  const orders = quotations.filter(q=>q.status==='accepted').map((q,i)=>({ id:'SO-'+(501+i), quotationId:q.id, customerId:q.customerId, date:fmtDate(addDays(q.date, 3)), total:q.total, status: pick(rng,['open','in_progress','done','done']) }));
+
+  return {customers, users, invoices, payments, quotations, leads, orders};
+}
+
+/* ---------- store ---------- */
+const DEFAULT_SETTINGS = {
+  companyName:'شركة تجريبية للقص والكور', botName:'مساعد حسابو', currency:'ريال', vat:15,
+  aiMode:'auto',            // auto | real | rules
+  approvals:{ CREATE_INVOICE:true, RECORD_PAYMENT:true, CREATE_CUSTOMER:false, SEND_QUOTATION:true },
+  approvalThreshold: 20000, // invoices above this need approval even if toggled off (informational)
+  msgCost: 0.12,            // SAR per outgoing WhatsApp message (simulated)
+  aiCost: 0.02,             // SAR per AI call (simulated)
+  manualMinutes: 6,         // minutes a human would spend per request (for "time saved")
+  typingDelay: 600,         // ms
+  overdueDays: 30,
+  showTrace: true,
+};
+
+let S = null;
+function freshState(){
+  const seed = generateSeed();
+  return Object.assign(seed, {
+    settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
+    conversations:{},   // phone -> {messages:[], context:null, unread:0}
+    approvals:[], handoffs:[], audit:[], requests:[], testResults:null,
+    counters:{inv: 1001+seed.invoices.length, pay: 3001+seed.payments.length, qt: 2001+seed.quotations.length, ld: 401+seed.leads.length, so: 501+seed.orders.length, ap:1, ho:1, cust:101},
+    version:1, createdAt: new Date().toISOString(),
+  });
+}
+function load(){
+  try { const raw = localStorage.getItem(STORE_KEY); if (raw){ const st = JSON.parse(raw); if (st && st.version===1 && st.customers) { S = st; S.settings = Object.assign(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), S.settings||{}); S.settings.approvals = Object.assign({}, DEFAULT_SETTINGS.approvals, S.settings.approvals||{}); return; } } } catch(e){}
+  S = freshState();
+}
+let _saveT = null;
+function save(){ clearTimeout(_saveT); _saveT = setTimeout(()=>{ try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch(e){} }, 250); }
+function resetAll(){ S = freshState(); try{ localStorage.removeItem(STORE_KEY);}catch(e){} save(); }
+
+/* ---------- derived accounting helpers ---------- */
+function invoiceStatus(inv){
+  if (inv.status === 'draft') return 'draft';
+  if (inv.remaining <= 0) return 'paid';
+  const overdue = inv.dueDate < fmtDate(TODAY);
+  if (inv.paid > 0) return overdue ? 'overdue' : 'partial';
+  return overdue ? 'overdue' : 'unpaid';
+}
+const STATUS_AR = { paid:'مدفوعة', partial:'مدفوعة جزئياً', unpaid:'غير مدفوعة', overdue:'متأخرة', draft:'مسودة',
+  sent:'مرسل', accepted:'مقبول', rejected:'مرفوض', expired:'منتهي', pending_approval:'بانتظار الاعتماد',
+  new:'جديد', contacted:'تم التواصل', quoted:'تم التسعير', won:'تم الفوز', lost:'خسارة',
+  open:'مفتوح', in_progress:'قيد التنفيذ', done:'منتهي', pending:'معلق', approved:'معتمد', resolved:'تم الحل', active:'نشط', blocked:'موقوف' };
+const STATUS_TAG = { paid:'good', partial:'warn', unpaid:'info', overdue:'crit', draft:'', sent:'info', accepted:'good', rejected:'crit', expired:'', pending_approval:'warn', new:'info', contacted:'warn', quoted:'info', won:'good', lost:'crit', open:'info', in_progress:'warn', done:'good', pending:'warn', approved:'good', resolved:'good', active:'good', blocked:'crit' };
+const tagOf = st => `<span class="tag ${STATUS_TAG[st]||''}">${STATUS_AR[st]||st}</span>`;
+
+function customerInvoices(cid){ return S.invoices.filter(i => i.customerId===cid && i.status!=='draft'); }
+function customerBalance(cid){ const inv = customerInvoices(cid); return { total: sum(inv, i=>i.amount), paid: sum(inv, i=>i.paid), remaining: sum(inv, i=>i.remaining), overdue: sum(inv.filter(i=>invoiceStatus(i)==='overdue'), i=>i.remaining), count: inv.length }; }
+function customerByPhone(phone){ return S.customers.find(c => c.phone === phone); }
+function userByPhone(phone){ return S.users.find(u => u.phone === phone); }
+function customerName(cid){ const c = byId(S.customers, cid); return c ? c.company : cid; }
+function productById(id){ return PRODUCTS.find(p=>p.id===id); }
+
+/* actor resolution: who is "sending" from a given phone */
+function resolveActor(phone){
+  const u = userByPhone(phone); if (u) return { role:u.role, name:u.name, id:u.id, phone, user:u };
+  const c = customerByPhone(phone); if (c) return { role:'customer', name:c.name, id:c.id, phone, customer:c };
+  return { role:'unknown', name:'رقم غير معروف', id:null, phone };
+}
+
+/* audit + request log */
+function audit(actor, action, entity, entityId, details){ S.audit.unshift({ ts:new Date().toISOString(), actor: actor||'system', action, entity, entityId:entityId||'', details: details||'' }); if (S.audit.length>2000) S.audit.length=2000; save(); }
+function logRequest(r){ S.requests.unshift(Object.assign({ts:new Date().toISOString()}, r)); if (S.requests.length>5000) S.requests.length=5000; save(); }
+
+/* conversations */
+function conv(phone){ if (!S.conversations[phone]) S.conversations[phone] = { messages:[], context:null }; return S.conversations[phone]; }
+function pushMsg(phone, dir, text, meta){ const m = { id:uid(), dir, text, ts:new Date().toISOString(), meta: meta||{} }; conv(phone).messages.push(m); save(); return m; }
+</script>
+<script>
+/* =====================================================================
+   HESABO Simulator — Part 2: NLU (rules + real AI), RBAC, flows,
+   business logic, approvals, pipeline
+   ===================================================================== */
+
+/* ---------- A. normalisation & entity extraction ---------- */
+function norm(s){
+  return String(s||'').toLowerCase()
+    .replace(/(\d)[,،](\d)/g,'$1$2')
+    .replace(/[ً-ْـ]/g,'')
+    .replace(/[أإآٱ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/ؤ/g,'و').replace(/ئ/g,'ي')
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+    .replace(/[،,؟?!.:;()\[\]"'«»]/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+const CITY_N = CITIES.map(c => ({ n: norm(c), name:c }));
+function matchProduct(text){
+  const n = norm(text); if (!n) return null;
+  // diameter-specific coring
+  if (/كور|coring|تخريم|ثقب/.test(n)){ if (/\b200\b/.test(n)) return productById('P-06'); if (/\b150\b/.test(n)) return productById('P-05'); return productById('P-04'); }
+  if (/ارضي|floor/.test(n)) return productById('P-03');
+  if (/سلك|واير|wire/.test(n)) return productById('P-02');
+  for (const p of PRODUCTS){ for (const k of p.keys){ if (k && n.includes(norm(k))) return p; } }
+  if (/^p-?\d\d$/.test(n)) return productById(n.toUpperCase().replace(/^P(\d)/,'P-$1'));
+  return null;
+}
+function unitNorm(u){
+  u = norm(u||'');
+  if (/مربع|م2|م²|²/.test(u)) return 'م²';
+  if (/مكعب|م3|م³|³/.test(u)) return 'م³';
+  if (/نقط|ثقب|ثقوب|فتح|كور/.test(u)) return 'نقطة';
+  if (/عدد|قطع|حب/.test(u)) return 'عدد';
+  if (/متر|م ?ط|^م$/.test(u)) return 'م.ط';
+  return u || null;
+}
+function findCustomerInText(n){
+  let best = null;
+  for (const c of S.customers){
+    const core = norm(c.core);
+    if (core.length >= 3 && n.includes(core) && (!best || core.length > best.len)) best = { c, len: core.length };
+    const nm = norm(c.name).split(' ');
+    if (nm.length===2 && n.includes(nm[0]) && n.includes(nm[1]) && (!best || 99 > best.len)) best = { c, len: 99 };
+    const idm = n.match(/c-?0*(\d{1,3})\b/); if (idm && c.id === 'C-'+String(idm[1]).padStart(3,'0')) return c;
+  }
+  return best ? best.c : null;
+}
+function extractEntities(raw){
+  const n = norm(raw); const e = {};
+  let m;
+  if ((m = n.match(/(?:فاتور[هة]|فواتير|inv)[\s#:\-]*(?:رقم\s*)?#?\s*(\d{3,6})/))) e.invoice_no = +m[1];
+  else if ((m = n.match(/inv[\s\-]?(\d{3,6})/))) e.invoice_no = +m[1];
+  if ((m = n.match(/(?:عرض (?:ال)?سعر|عرض|qt)[\s#:\-]*(?:رقم\s*)?#?\s*(\d{4})\b/))) e.quotation_no = +m[1];
+  else if ((m = n.match(/qt[\s\-]?(\d{4})/))) e.quotation_no = +m[1];
+  if ((m = n.match(/(\d+(?:\.\d+)?)\s*(?:الف|ألف|k)(?=\s|$)/))) e.amount = Math.round(+m[1]*1000);
+  else if ((m = n.match(/(\d{2,9}(?:\.\d+)?)\s*(?:ريال|ر\s?س|sar|جنيه|درهم)/))) e.amount = +m[1];
+  if ((m = n.match(/(\d+(?:\.\d+)?)\s*(متر مربع|متر مكعب|متر طولي|م\.?ط|م ?2|م²|م ?3|م³|متر|م(?=\s|$)|نقطه|نقاط|نقط|عدد|قطعه|قطع|ثقب|ثقوب|فتحه|فتحات|حبه|كور(?=\s|$))/))) { e.quantity = +m[1]; e.unit = unitNorm(m[2]); }
+  if ((m = n.match(/(?:سمك|سماكه|تخانه)\s*(?:ال)?(?:خرسانه|حيطه|بلاطه|جدار)?\s*(\d+(?:\.\d+)?)\s*(سم|مم|cm|mm|م|متر)?/))) { e.thickness_cm = m[2]==='مم'||m[2]==='mm' ? +m[1]/10 : (m[2]==='م'||m[2]==='متر') ? +m[1]*100 : +m[1]; }
+  else if ((m = n.match(/(\d+(?:\.\d+)?)\s*(?:سم|cm)(?=\s|$)/))) e.thickness_cm = +m[1];
+  for (const c of CITY_N){ if (n.includes(c.n)) { e.location = c.name; break; } }
+  if (!e.location && (m = n.match(/(?:في موقع|بموقع|موقع|الموقع|مكان|في|فى)\s+([؀-ۿ]{3,}(?:\s[؀-ۿ]{2,})?)/))) { const w = m[1]; if (!/^(الفاتور|الحساب|عرض|السعر|الشرك|النظام|الموقع)/.test(w)) e.location_text = w; }
+  if ((m = n.match(/(\d+)\s*(?:يوم|ايام)/))) e.days = +m[1];
+  if (/اسبوع|week/.test(n)) e.period = 'week'; else if (/شهر|month/.test(n)) e.period = 'month';
+  if (/كاش|نقدي|نقدا|cash/.test(n)) e.payment_method = 'نقدي'; else if (/تحويل|حواله|حولت|بنك|transfer|iban|ايبان/.test(n)) e.payment_method = 'تحويل بنكي'; else if (/شيك|cheque|check/.test(n)) e.payment_method = 'شيك';
+  if ((m = n.match(/(?:رقم (?:مرجع|المرجع|التحويل|العمليه|الحواله)|مرجع|ref(?:erence)?)[:\s#]*([a-z0-9\-]{4,})/))) e.reference = m[1].toUpperCase();
+  if ((m = raw.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).match(/(?:\+?966|0)?(5\d{8})\b/))) e.phone = '+966' + m[1];
+  const prod = matchProduct(n); if (prod) e.service = prod.id;
+  const cust = findCustomerInText(n); if (cust) e.customer_id = cust.id;
+  if ((m = n.match(/(?:شركه|مؤسسه)\s+([؀-ۿ]+(?:\s[؀-ۿ]+){0,3}?)(?=\s+(?:اسم|المسؤول|تليفون|رقم|جوال|موبايل|\+|0|5|عليه|عليها|رصيد|كام)|$)/))) e.company_text = (raw.match(/(شركة|مؤسسة|شركه|مؤسسه)\s+[؀-ۿ]+(?:\s[؀-ۿ]+){0,3}/)||[m[0]])[0];
+  if ((m = raw.match(/(?:اسمه|اسمها|اسم المسؤول|المسؤول|الاسم|اسم)\s*:?\s*([؀-ۿ]+(?:\s[؀-ۿ]+)?)/))) e.person_name = m[1];
+  const nums = (n.match(/\b\d+(?:\.\d+)?\b/g)||[]).map(Number); if (nums.length) e.numbers = nums;
+  return e;
+}
+
+/* ---------- B. intents & RBAC ---------- */
+const INTENTS = {
+  GREETING:{ar:'تحية', desc:'greeting / small talk (سلام، أهلاً، صباح الخير)'},
+  THANKS:{ar:'شكر', desc:'thanks (شكراً، تسلم)'},
+  HELP:{ar:'مساعدة', desc:'asks what the assistant can do'},
+  CUSTOMER_BALANCE:{ar:'رصيد العميل', desc:'how much is owed / current balance (عليا كام؟ رصيدي؟ شركة X عليها كام؟)'},
+  LAST_INVOICE:{ar:'آخر فاتورة', desc:'send the last / latest invoice'},
+  INVOICE_STATUS:{ar:'حالة فاتورة', desc:'is invoice N paid? status of a specific invoice number'},
+  INVOICE_DUE_DATE:{ar:'موعد استحقاق', desc:'due date of an invoice'},
+  LIST_INVOICES:{ar:'قائمة الفواتير', desc:'list invoices (all / open / unpaid)'},
+  PAYMENT_SEARCH:{ar:'بحث مدفوعات', desc:'what was paid / last payment / list payments (دفعت كام؟ آخر دفعة؟)'},
+  RECORD_PAYMENT:{ar:'تسجيل دفعة', desc:'report or record a payment made (حولت 5000، سجل دفعة)'},
+  STATEMENT:{ar:'كشف حساب', desc:'account statement'},
+  CREATE_QUOTATION:{ar:'طلب عرض سعر', desc:'request a quotation / price for a service (عايز عرض سعر لـ20 متر قص، بكام الكور؟)'},
+  QUOTATION_STATUS:{ar:'حالة عرض سعر', desc:'status of an existing quotation (فين عرض السعر بتاعي؟ عرض 2050 اتقبل؟)'},
+  OPEN_QUOTATIONS:{ar:'العروض المفتوحة', desc:'staff: list open / pending quotations'},
+  FOLLOW_UP:{ar:'متابعة العروض', desc:'staff: follow up customers who did not answer quotations'},
+  SALES_REPORT:{ar:'تقرير مبيعات', desc:'staff: sales report for week / month'},
+  WHO_OWES:{ar:'المتأخرين بالسداد', desc:'staff: which customers owe money / overdue more than N days'},
+  CUSTOMER_SEARCH:{ar:'بحث عميل', desc:'staff: find customer details (رقم / بيانات عميل X)'},
+  CREATE_CUSTOMER:{ar:'إضافة عميل', desc:'staff: add a new customer'},
+  CREATE_INVOICE:{ar:'إنشاء فاتورة', desc:'staff: create an invoice for a customer'},
+  CREATE_LEAD:{ar:'تسجيل فرصة', desc:'staff: register a new lead / prospect'},
+  CONFIRM:{ar:'تأكيد', desc:'yes / confirm / ok'},
+  DENY:{ar:'رفض', desc:'no / not correct'},
+  CANCEL:{ar:'إلغاء', desc:'cancel the current request'},
+  FLOW_ANSWER:{ar:'إجابة على سؤال', desc:'answers a question the assistant asked in an active flow'},
+  UNKNOWN:{ar:'غير مفهوم', desc:'anything else / unclear'},
+};
+const COMMON = ['GREETING','THANKS','HELP','CONFIRM','DENY','CANCEL','FLOW_ANSWER','UNKNOWN'];
+const PERMS = {
+  customer:[...COMMON,'CUSTOMER_BALANCE','LAST_INVOICE','INVOICE_STATUS','INVOICE_DUE_DATE','LIST_INVOICES','PAYMENT_SEARCH','RECORD_PAYMENT','STATEMENT','CREATE_QUOTATION','QUOTATION_STATUS'],
+  sales:[...COMMON,'CUSTOMER_SEARCH','CREATE_CUSTOMER','CUSTOMER_BALANCE','CREATE_LEAD','CREATE_QUOTATION','QUOTATION_STATUS','OPEN_QUOTATIONS','FOLLOW_UP','SALES_REPORT'],
+  accountant:[...COMMON,'CUSTOMER_SEARCH','CUSTOMER_BALANCE','LAST_INVOICE','INVOICE_STATUS','INVOICE_DUE_DATE','LIST_INVOICES','PAYMENT_SEARCH','RECORD_PAYMENT','STATEMENT','CREATE_INVOICE','WHO_OWES'],
+  admin: Object.keys(INTENTS),
+  unknown:[...COMMON,'CREATE_QUOTATION'],
+};
+const SENSITIVE = ['CREATE_INVOICE','RECORD_PAYMENT','CREATE_CUSTOMER','SEND_QUOTATION'];
+const STAFF = r => r==='sales'||r==='accountant'||r==='admin';
+
+/* ---------- C. rule-based NLU (offline fallback) ---------- */
+function ruleNLU(raw, ctx){
+  const n = norm(raw);
+  const e = extractEntities(raw);
+  const R = (intent, conf, why) => ({ intent, confidence:conf, entities:e, engine:'rules', why });
+  const words = n.split(' ').length;
+  if (/^(الغي|الغاء|كنسل|cancel|خلاص مش عايز|مش عايز|بطل|وقف)/.test(n)) return R('CANCEL',.95,'cancel word');
+  if (/^(ايوه|ايوا|اه|اها|نعم|تمام|موافق|اوك|اوكي|ok|okay|yes|اكيد|ماشي|صح|تاكيد|اعتمد|كده تمام|تمام كده|y)(?=\s|$)/.test(n) && words<=3) return R('CONFIRM',.95,'confirm word');
+  if (/^(لا|لأ|لاء|no|مش صح|غلط|مش كده|لا غلط)(?=\s|$)/.test(n) && words<=3) return R('DENY',.95,'deny word');
+  if (ctx && ctx.flow){
+    // inside a flow: a bare answer is a FLOW_ANSWER unless it clearly starts a new request
+    const newReq = /(عليا كام|رصيد|اخر فاتوره|كشف حساب|عرض سعر|تقرير|مين عليه)/.test(n);
+    if (!newReq) return R('FLOW_ANSWER',.85,'active flow');
+  }
+  if (/^(سلام|السلام عليكم|اهلا|اهلين|هاي|هلا|مرحبا|صباح الخير|صباح النور|مساء الخير|مساء النور|hi|hello|hey|السلام|ازيك|ازيكم|كيفك|كيف الحال|عامل ايه)/.test(n) && words<=4) return R('GREETING',.95,'greeting');
+  if (/^(شكرا|تسلم|مشكور|thanks|thank you|يعطيك العافيه|الله يعطيك العافيه)/.test(n) && words<=4) return R('THANKS',.95,'thanks');
+  if (/(مساعده|help|تقدر تعمل ايه|ايه اللي تقدر|الاوامر|ممكن اعمل ايه|بتعمل ايه|ازاي استخدم|ايه الخدمات اللي)/.test(n)) return R('HELP',.9,'help');
+  if (/(مين عليه|مين عليهم|مين اللي عليه|العملاء اللي عليهم|المتاخرين|متاخر في السداد|overdue|الديون|التحصيل|المديونيات|مستحقات متاخره|اكتر من \d+ يوم|فاتت الاستحقاق|عدت الاستحقاق|مين لسه ما دفعش|مين ما دفعش)/.test(n)) return R('WHO_OWES',.9,'who owes');
+  if (/(اعمل متابعه|متابعه للعملاء|follow ?up|فكر العملاء|ذكر العملاء|ابعت تذكير|تابع العملاء|متابعه العروض|اللي ما ردوش|ما ردوش)/.test(n)) return R('FOLLOW_UP',.9,'follow up');
+  if (/(تقرير المبيعات|تقرير الاسبوع|تقرير الشهر|sales report|ملخص المبيعات|المبيعات هذا الاسبوع|المبيعات الاسبوع|المبيعات الشهر|بعنا كام|جهزلي تقرير|تقرير مبيعات|ايه اخبار المبيعات)/.test(n)) return R('SALES_REPORT',.9,'sales report');
+  if (/(عروض الاسعار المفتوحه|العروض المفتوحه|كل عروض الاسعار|العروض المعلقه|open quotations|العروض اللي لسه|عروض السعر اللي لسه|عروض الاسعار المعلقه|العروض اللي منتظره|هاتلي كل عروض)/.test(n)) return R('OPEN_QUOTATIONS',.9,'open quotes');
+  if (e.quotation_no || /(فين عرض السعر|حاله عرض السعر|حاله العرض|عرض السعر بتاعي|عرضي وصل|العرض اتوافق|العرض اتقبل|عرض السعر اتقبل|اتبعت العرض|العرض اتبعت|رد علي العرض|العرض وصل|هتبعتوا العرض امتي|العرض هيتبعت امتي|فين العرض|صار علي عرض|صار علي العرض|وصلني عرض|العرض جاهز|عرض السعر جاهز)/.test(n)) return R('QUOTATION_STATUS',.85,'quotation status');
+  if (/(ضيف عميل|اضف عميل|سجل عميل|add customer|new customer|انشئ عميل|ضيفلي عميل|سجلي عميل|اضيف عميل)/.test(n)) return R('CREATE_CUSTOMER',.9,'create customer');
+  if (/(سجل ليد|\blead\b|عميل محتمل|ضيف ليد|فرصه جديده|سجل فرصه|عميل مهتم|سجله كفرصه)/.test(n)) return R('CREATE_LEAD',.85,'create lead');
+  if (/(عرض سعر|عرض اسعار|عروض اسعار|تسعير|تسعيره|quotation|quote|(?<!مديون |عليا |عليه |عليها )(?<![؀-ۿ])بكام(?![؀-ۿ])|كام سعر|سعر ال|اسعار ال|price|كام تكلفه|تكلفه|كم سعر|كم يكلف|(?<![؀-ۿ])بكم(?![؀-ۿ]))/.test(n) || (e.service && /(محتاج|عايز|عاوز|احتاج|ابغي|ابي|ابغى|نبي|ممكن|اطلب|طلب|عندنا شغل|عندي شغل|نحتاج)/.test(n))) return R('CREATE_QUOTATION',.88,'quotation request');
+  if (/(اعمل فاتوره|اعملي فاتوره|انشئ فاتوره|اصدر فاتوره|فاتوره جديده|create invoice|اعمل فاتور|سجل فاتوره|اطلع فاتوره)/.test(n)) return R('CREATE_INVOICE',.9,'create invoice');
+  if (/(عميل جديد)/.test(n)) return R('CREATE_CUSTOMER',.7,'new customer words');
+  if (/(دور علي عميل|ابحث عن عميل|بيانات عميل|بيانات شركه|رقم عميل|تليفون عميل|search customer|عميل اسمه|فين عميل|هات بيانات|رقم شركه|تليفون شركه|بيانات ال)/.test(n)) return R('CUSTOMER_SEARCH',.85,'customer search');
+  if (/(كشف حساب|كشف الحساب|statement|اعمل كشف|ابعت كشف|كشف حسابي|هات كشف)/.test(n)) return R('STATEMENT',.92,'statement');
+  if (/(موعد استحقاق|موعد الاستحقاق|استحقاق|تاريخ الاستحقاق|due date|تستحق|يستحق|امتي الدفع|اخر ميعاد|اخر موعد|ميعاد الدفع|امتي اسدد|امتي السداد|متي اسدد|متي السداد)/.test(n)) return R('INVOICE_DUE_DATE',.88,'due date');
+  if (/(اخر فاتوره|آخر فاتورة|last invoice|اخر فاتور|هات الفاتوره الاخيره|الفاتوره الاخيره|اخر فاتورتي)/.test(n)) return R('LAST_INVOICE',.92,'last invoice');
+  if (e.invoice_no && !/((?<!ات)دفعت|حولت|سجل دفعه)/.test(n)) return R('INVOICE_STATUS',.88,'invoice number present');
+  if (/(الفاتوره اتدفعت|اتدفعت|اتسددت|حاله الفاتوره|الفاتوره مدفوعه|status of invoice|invoice status|الفاتوره دي)/.test(n) && !/((?<!ات)دفعت|حولت)/.test(n)) return R('INVOICE_STATUS',.8,'invoice status words');
+  if (/(فواتيري|الفواتير|كل الفواتير|هات الفواتير|فواتير مفتوحه|الفواتير المفتوحه|فواتير غير مدفوعه|invoices|عندي فواتير|ايه الفواتير|فواتير ال|فواتير)/.test(n)) return R('LIST_INVOICES',.85,'list invoices');
+  const payVerb = /(سجل دفعه|سجلي دفعه|اضف دفعه|record payment|تم التحويل|حولت|حولتلكم|دفعتلكم|سددت|(?<!ات)دفعت|ادفع|عايز ادفع|هدفع|هحول)/.test(n);
+  const paySearch = /(اخر دفعه|مدفوعات|دفعاتي|ايه اللي اتدفع|كام دفعت|دفعت كام|payments|اخر تحويل|التحويلات|كام اللي اتدفع|اللي اتدفع|دفعاتنا|هات المدفوعات|سجل الدفعات|الدفعات)/.test(n);
+  if (payVerb && (e.amount || (e.numbers && e.numbers.some(x=>x>=50)) || /سجل|اضف|record|ادفع|عايز ادفع|هدفع|هحول/.test(n))) { if (!e.amount && e.numbers){ const cands = e.numbers.filter(x => x!==e.invoice_no && x>=50); if (cands.length) e.amount = Math.max(...cands); } return R('RECORD_PAYMENT',.88,'payment verb + amount'); }
+  if (paySearch || (/دفع/.test(n) && /كام|امتي|ايه/.test(n))) return R('PAYMENT_SEARCH',.85,'payment search');
+  if (/(عليا كام|عليه كام|عليها كام|علي كام|كام عليا|كام عليه|رصيد|الرصيد|المتبقي|المستحق|باقي عليا|كم علي|كم المتبقي|balance|outstanding|اجمالي المستحق|حسابي كام|كام حسابي|عندكم كام|كام ليكم|ليكم كام|مديون بكام|عليا فلوس|عليه فلوس|عليها فلوس|كم باقي|فاضل عليا|فاضل كام|الباقي علي|كم المبلغ|المبلغ الباقي|كم عليه|كم عليها|عليا ايه|عليا اد ايه|ايه اللي عليا)/.test(n)) return R('CUSTOMER_BALANCE',.9,'balance words');
+  if (e.customer_id && STAFFish(n)) return R('CUSTOMER_SEARCH',.6,'customer name only');
+  return R('UNKNOWN',.3,'no pattern matched');
+}
+const STAFFish = n => /(عميل|شركه|مؤسسه)/.test(n);
+
+/* ---------- D. real AI (Claude via the artifact sample capability) ---------- */
+const AI = { sample:null, status:'checking', lastError:null, calls:0, fails:0 };
+(async function initAI(){
+  try {
+    if (!window.claude || typeof window.claude.use !== 'function'){ AI.status='unavailable'; updateAIPill(); return; }
+    const s = await window.claude.use('sample');
+    if (!s){ AI.status='unavailable'; } else { AI.sample = s; AI.status='ready'; }
+  } catch(e){ AI.status='unavailable'; }
+  updateAIPill();
+})();
+function updateAIPill(){
+  const p = $('#ai-pill'), t = $('#ai-pill-txt'); if (!p) return;
+  const mode = S && S.settings ? S.settings.aiMode : 'auto';
+  p.classList.remove('ok','warn','bad');
+  if (mode==='rules'){ p.classList.add('warn'); t.textContent='المحرك: قواعد محاكاة (بدون AI)'; return; }
+  if (AI.status==='ready'){ p.classList.add('ok'); t.textContent = 'المحرك: Claude AI حقيقي' + (mode==='auto' ? ' + قواعد احتياطية' : ''); }
+  else if (AI.status==='denied'){ p.classList.add('bad'); t.textContent='الـAI مرفوض من المستخدم — شغال بالقواعد'; }
+  else if (AI.status==='checking'){ t.textContent='جاري فحص محرك الـAI…'; }
+  else { p.classList.add('warn'); t.textContent='الـAI غير متاح هنا — شغال بمحرك القواعد'; }
+}
+function engineToUse(){ const m = S.settings.aiMode; if (m==='rules') return 'rules'; if (AI.status==='ready' && AI.sample) return 'ai'; return 'rules'; }
+
+function buildAIPrompt(raw, actor, ctx, history){
+  const roleDesc = {customer:'a registered customer of the company', sales:'a sales representative (staff)', accountant:'an accountant (staff)', admin:'the company admin / pricing manager (staff)', unknown:'an unknown phone number, not registered'}[actor.role];
+  const intentLines = Object.entries(INTENTS).map(([k,v]) => `- ${k}: ${v.desc}`).join('\n');
+  const services = PRODUCTS.map(p => `${p.id} ${p.name} (${p.unit})`).join('; ');
+  const hist = (history||[]).slice(-6).map(m => (m.dir==='out' ? 'USER: ' : 'ASSISTANT: ') + m.text.slice(0,200)).join('\n');
+  let flowTxt = 'none';
+  if (ctx && ctx.flow){ flowTxt = JSON.stringify({ flow: ctx.flow, filled: ctx.slots, missing: ctx.missing, awaiting_confirmation: !!ctx.confirming }); }
+  return `You are the NLU (intent detection) layer of "HESABO", a WhatsApp assistant connected to the accounting system of a concrete cutting / coring / GPR scanning contractor in Saudi Arabia. Users write in Arabic (Egyptian or Gulf dialect) or English.
+Your ONLY job: classify the LAST user message into one intent and extract entities. Never compute balances, never invent data.
+
+Sender role: ${actor.role} (${roleDesc}). Sender name: ${actor.name}.${actor.customer ? ' Registered company: '+actor.customer.company : ''}
+Known customer companies (staff may refer to them): ${S.customers.slice(0,12).map(c=>c.company).join(' | ')} ... (100 total; put the name the user wrote in customer_name)
+Services catalog: ${services}
+Active flow (the assistant is collecting information): ${flowTxt}
+Rules for an active flow: if the message answers a missing slot, set intent "FLOW_ANSWER" and put the values in flow_answer using the slot names in "missing". If awaiting_confirmation and the user agrees (نعم/أيوه/تمام/ok) → "CONFIRM"; disagrees → "DENY"; wants to stop → "CANCEL". If the message is clearly a NEW different request, classify it normally.
+
+Recent conversation (USER = sender, ASSISTANT = bot):
+${hist || '(none)'}
+
+Intents:
+${intentLines}
+
+Reply with ONLY one JSON object, no prose:
+{"intent": "<INTENT>", "confidence": <0..1>, "entities": {"customer_name": string|null, "invoice_no": number|null, "quotation_no": number|null, "amount": number|null, "service": string|null (a product id like "P-04" when it matches the catalog, else the words used), "quantity": number|null, "unit": string|null, "location": string|null, "thickness_cm": number|null, "payment_method": "نقدي"|"تحويل بنكي"|"شيك"|null, "reference": string|null, "days": number|null, "period": "week"|"month"|null, "person_name": string|null, "company_text": string|null, "phone": string|null, "invoice_filter": "open"|"all"|null}, "flow_answer": {"<slot>": value} | null}
+
+LAST USER MESSAGE: """${raw.slice(0,600)}"""`;
+}
+async function aiNLU(raw, actor, ctx, history){
+  const prompt = buildAIPrompt(raw, actor, ctx, history);
+  AI.calls++;
+  const out = await AI.sample.json(prompt, { modelTier:'quick', cache:false });
+  if (!out || typeof out !== 'object' || !out.intent) throw { code:'invalid_json', message:'no intent' };
+  const intent = INTENTS[out.intent] ? out.intent : 'UNKNOWN';
+  const ents = Object.assign({}, extractEntities(raw)); // rules extraction as a base, AI overrides
+  const ai = out.entities || {};
+  for (const [k,v] of Object.entries(ai)){ if (v !== null && v !== undefined && v !== '') ents[k] = v; }
+  if (ai.service){ const p = matchProduct(String(ai.service)); if (p) ents.service = p.id; }
+  if (ai.customer_name && !ents.customer_id){ const c = findCustomerInText(norm(ai.customer_name)); if (c) ents.customer_id = c.id; else ents.customer_name = ai.customer_name; }
+  if (ai.unit) ents.unit = unitNorm(ai.unit) || ai.unit;
+  if (ai.phone){ const m = String(ai.phone).match(/(5\d{8})\D*$/); if (m) ents.phone = '+966'+m[1]; }
+  return { intent, confidence: clamp(+out.confidence || .7, 0, 1), entities: ents, engine:'ai', flow_answer: out.flow_answer || null, rawAI: out };
+}
+async function classify(raw, actor, ctx, history){
+  const eng = engineToUse();
+  if (eng === 'ai'){
+    try { const r = await aiNLU(raw, actor, ctx, history); return r; }
+    catch(e){
+      AI.fails++; AI.lastError = e && e.code ? e.code : String(e);
+      if (e && (e.code==='not_granted' || e.code==='sampling_disabled' || e.code==='not_declared')){ AI.status = e.code==='not_granted' ? 'denied' : 'unavailable'; updateAIPill(); }
+      const r = ruleNLU(raw, ctx); r.engine = 'rules'; r.fallbackFrom = 'ai:' + (e && e.code ? e.code : 'error'); return r;
+    }
+  }
+  return ruleNLU(raw, ctx);
+}
+
+/* ---------- E. flows (multi-turn slot filling) ---------- */
+const FLOWS = {
+  CREATE_QUOTATION:{ title:'طلب عرض سعر', slots:(actor)=> STAFF(actor.role) ? ['customer','service','quantity','location','thickness'] : actor.role==='unknown' ? ['person_name','company_text','service','quantity','location','thickness'] : ['service','quantity','location','thickness'] },
+  RECORD_PAYMENT:{ title:'تسجيل دفعة', slots:(actor)=> STAFF(actor.role) ? ['customer','amount','payment_method','invoice_no'] : ['amount','payment_method','invoice_no'] },
+  CREATE_INVOICE:{ title:'إنشاء فاتورة', slots:()=>['customer','amount','description'] },
+  CREATE_CUSTOMER:{ title:'إضافة عميل', slots:()=>['company_text','person_name','phone'] },
+  CREATE_LEAD:{ title:'تسجيل فرصة', slots:()=>['person_name','phone','service','location'] },
+  NEED_CUSTOMER:{ title:'تحديد العميل', slots:()=>['customer'] },
+  NEED_INVOICE:{ title:'تحديد الفاتورة', slots:()=>['invoice_no'] },
+};
+const SLOT_Q = {
+  customer:'العميل مين؟ اكتب اسم الشركة أو اسم المسؤول.',
+  service:'الخدمة المطلوبة إيه؟ (قص خرسانة / كور / مسح GPR / هدم / حقن شروخ / تقوية كربون / زرع أشاير / معالجة صدأ)',
+  quantity:'الكمية التقريبية كام؟ (مثال: 20 متر، 50 نقطة، 300 م²)',
+  location:'موقع العمل فين؟ (المدينة أو اسم المشروع)',
+  thickness:'سمك الخرسانة كام سم؟ (لو مش متأكد اكتب "مش عارف")',
+  amount:'المبلغ كام؟',
+  payment_method:'طريقة الدفع؟ (تحويل بنكي / شيك / نقدي)',
+  invoice_no:'رقم الفاتورة؟ (أو اكتب "أقدم فاتورة" عشان نخصمها من أقدم فاتورة مفتوحة)',
+  description:'وصف الفاتورة / الأعمال؟',
+  company_text:'اسم الشركة؟',
+  person_name:'اسم المسؤول؟',
+  phone:'رقم الجوال؟ (05xxxxxxxx)',
+};
+const SLOT_OPTIONAL = { thickness:true, invoice_no:true, company_text:true, location:false };
+function slotLabel(s){ return {customer:'العميل',service:'الخدمة',quantity:'الكمية',location:'الموقع',thickness:'السمك',amount:'المبلغ',payment_method:'طريقة الدفع',invoice_no:'الفاتورة',description:'الوصف',company_text:'الشركة',person_name:'المسؤول',phone:'الجوال'}[s]||s; }
+function fmtSlot(s, v){
+  if (v===null||v===undefined||v==='') return '—';
+  if (s==='customer') return customerName(v);
+  if (s==='service') { const p = productById(v); return p ? p.name : v; }
+  if (s==='quantity') return fmtN(v);
+  if (s==='thickness') return v==='unknown' ? 'غير محدد' : v+' سم';
+  if (s==='amount') return fmtMoney(v);
+  if (s==='invoice_no') return v==='oldest' ? 'أقدم فاتورة مفتوحة' : 'INV-'+v;
+  return String(v);
+}
+/* pull slot values out of extracted entities (+ optional AI flow_answer) */
+function fillSlots(ctx, raw, nlu, actor){
+  const e = nlu.entities || {}; const fa = nlu.flow_answer || {}; const n = norm(raw);
+  const set = (k,v) => { if (v!==undefined && v!==null && v!=='') ctx.slots[k] = v; };
+  // from AI flow answer first
+  for (const [k,v] of Object.entries(fa)){
+    if (!ctx.all.includes(k)) continue;
+    if (k==='customer'){ const c = findCustomerInText(norm(String(v))); if (c) set('customer', c.id); }
+    else if (k==='service'){ const p = matchProduct(String(v)); if (p) set('service', p.id); }
+    else if (k==='thickness'){ set('thickness', /مش عارف|غير معروف|unknown|لا اعرف|مش متاكد/.test(norm(String(v))) ? 'unknown' : parseFloat(v)||undefined); }
+    else if (k==='invoice_no'){ set('invoice_no', /اقدم|oldest|اي فاتوره/.test(norm(String(v))) ? 'oldest' : parseInt(v)||undefined); }
+    else if (k==='quantity'||k==='amount'){ set(k, parseFloat(v)||undefined); }
+    else set(k, String(v));
+  }
+  // from generic entities
+  if (e.customer_id) set('customer', e.customer_id);
+  if (e.service) set('service', e.service);
+  if (e.quantity) set('quantity', e.quantity);
+  if (e.unit) ctx.unit = e.unit;
+  if (e.location) set('location', e.location); else if (e.location_text) set('location', e.location_text);
+  if (e.thickness_cm) set('thickness', e.thickness_cm);
+  if (e.amount) set('amount', e.amount);
+  else if (ctx.all.includes('amount') && ctx.slots.amount===undefined && e.numbers){ const cands = e.numbers.filter(x => x!==e.invoice_no && x!==e.quotation_no && x!==e.quantity && x!==e.thickness_cm && x>=50); if (cands.length) set('amount', Math.max(...cands)); }
+  if (e.payment_method) set('payment_method', e.payment_method);
+  if (e.invoice_no) set('invoice_no', e.invoice_no);
+  if (e.reference) ctx.reference = e.reference;
+  if (e.phone) set('phone', e.phone);
+  if (e.person_name) set('person_name', e.person_name);
+  if (e.company_text) set('company_text', e.company_text);
+  // the message may be a bare answer to the slot we asked about
+  const asked = ctx.asked;
+  if (asked && ctx.slots[asked]===undefined){
+    const num = (n.match(/\d+(?:\.\d+)?/)||[])[0];
+    if (asked==='quantity' && num) set('quantity', +num);
+    else if (asked==='amount' && num) set('amount', +num);
+    else if (asked==='thickness'){ if (/مش عارف|معرفش|غير معروف|unknown|لا اعرف|مش متاكد|مش محدد/.test(n)) set('thickness','unknown'); else if (num) set('thickness', +num); }
+    else if (asked==='invoice_no'){ if (/اقدم|oldest|اي فاتوره|اي واحده/.test(n)) set('invoice_no','oldest'); else if (num && +num>=100) set('invoice_no', +num); }
+    else if (asked==='location' && raw.trim().length>=2 && !num) set('location', raw.trim());
+    else if (asked==='description' && raw.trim().length>=2) set('description', raw.trim());
+    else if (asked==='person_name' && raw.trim().length>=2 && !num) set('person_name', raw.trim());
+    else if (asked==='company_text' && raw.trim().length>=2){ if (/^(لا|مفيش|بدون|فرد|شخصي|no)/.test(n)) set('company_text','—'); else set('company_text', raw.trim()); }
+    else if (asked==='customer'){ const c = findCustomerInText(n); if (c) set('customer', c.id); }
+    else if (asked==='service'){ const p = matchProduct(n); if (p) set('service', p.id); }
+    else if (asked==='payment_method'){ if (e.payment_method) set('payment_method', e.payment_method); }
+    else if (asked==='phone' && e.phone) set('phone', e.phone);
+  }
+  // thickness only matters for cutting / coring / demolition
+  if (ctx.slots.service){ const p = productById(ctx.slots.service); if (p && !['قص','كور','هدم'].includes(p.cat) && ctx.slots.thickness===undefined) ctx.slots.thickness = 'n/a'; }
+  ctx.missing = ctx.all.filter(k => ctx.slots[k]===undefined);
+}
+function startFlow(flowName, actor, seedNLU, raw){
+  const f = FLOWS[flowName]; const all = f.slots(actor);
+  const ctx = { flow:flowName, all, slots:{}, missing:all.slice(), asked:null, confirming:false, startedAt:new Date().toISOString(), intent: flowName };
+  if (seedNLU) fillSlots(ctx, raw||'', seedNLU, actor);
+  return ctx;
+}
+function nextQuestion(ctx){
+  const k = ctx.missing[0]; ctx.asked = k;
+  const q = SLOT_Q[k] || ('محتاج '+slotLabel(k)+'؟');
+  const done = ctx.all.filter(s => ctx.slots[s]!==undefined && ctx.slots[s]!=='n/a').map(s => `• ${slotLabel(s)}: ${fmtSlot(s, ctx.slots[s])}`).join('\n');
+  return (done ? 'تمام، سجلت:\n'+done+'\n\n' : '') + q;
+}
+function confirmSummary(ctx){
+  const lines = ctx.all.filter(s => ctx.slots[s]!=='n/a').map(s => `• ${slotLabel(s)}: ${fmtSlot(s, ctx.slots[s])}${s==='quantity'&&ctx.unit?' '+ctx.unit:''}`).join('\n');
+  return `*ملخص ${FLOWS[ctx.flow].title}:*\n${lines}\n\nأأكد الطلب؟`;
+}
+
+/* ---------- F. business handlers ---------- */
+const H = {};
+const greet = a => a.role==='customer' ? `أهلاً أستاذ ${firstName(a.name)} 👋` : STAFF(a.role) ? `أهلاً ${firstName(a.name)} 👋` : 'أهلاً بك 👋';
+function helpText(role){
+  const L = {
+    customer:['رصيدك الحالي ("عليا كام؟")','آخر فاتورة أو حالة فاتورة برقمها','قائمة فواتيرك المفتوحة وموعد الاستحقاق','مدفوعاتك وتسجيل تحويل جديد','كشف حساب','طلب عرض سعر لأي خدمة ومتابعته'],
+    sales:['بيانات عميل أو رصيده الإجمالي','إضافة عميل جديد أو فرصة (Lead)','إنشاء طلب تسعير لعميل','العروض المفتوحة ومتابعة العملاء اللي ما ردوش','تقرير مبيعات الأسبوع / الشهر'],
+    accountant:['رصيد أي عميل وكشف حسابه','الفواتير والمدفوعات وحالة أي فاتورة','تسجيل دفعة (هتتعمل مسودة وتتعتمد)','إنشاء فاتورة لعميل (بموافقة)','مين عليه فلوس / المتأخرين في السداد'],
+    admin:['كل صلاحيات المبيعات والمحاسبة','اعتماد الفواتير والدفعات وعروض الأسعار','تقارير المبيعات والتحصيل'],
+    unknown:['طلب عرض سعر لخدمة (قص / كور / مسح / هدم / ترميم)','لو أنت عميل حالي: ابعت اسم الشركة عشان نربط رقمك'],
+  }[role] || [];
+  return `أقدر أساعدك في:\n${L.map(x=>'• '+x).join('\n')}\n\nاكتب طلبك بشكل طبيعي وأنا هفهمه 🙂`;
+}
+H.GREETING = (a) => ({ reply: `${greet(a)}\nأنا *${S.settings.botName}* — المساعد الذكي لـ${S.settings.companyName}.\n${a.role==='unknown' ? 'رقمك مش مسجل عندنا، بس أقدر أساعدك في طلب عرض سعر أو ربط حسابك.' : 'اكتب طلبك مباشرة، مثلاً: "عليا كام؟" أو "هات آخر فاتورة".'}` });
+H.THANKS = () => ({ reply:'العفو 🌹 تحت أمرك في أي وقت.' });
+H.HELP = (a) => ({ reply: helpText(a.role) });
+
+function needCustomer(a, e, intent){
+  if (e.customer_id) return byId(S.customers, e.customer_id);
+  if (a.role==='customer') return a.customer;
+  return null; // caller starts NEED_CUSTOMER flow
+}
+function balanceReply(c, a){
+  const b = customerBalance(c.id);
+  const head = a.role==='customer' ? greet(a) : `*${c.company}*`;
+  let t = `${head}\nإجمالي الفواتير: ${fmtMoney(b.total)}\nالمدفوع: ${fmtMoney(b.paid)}\n*المتبقي: ${fmtMoney(b.remaining)}*`;
+  if (b.overdue>0) t += `\n⚠️ منها متأخر عن الاستحقاق: ${fmtMoney(b.overdue)}`;
+  if (a.role==='sales') t = `*${c.company}*\nالرصيد المستحق: ${fmtMoney(b.remaining)}${b.overdue>0?` (متأخر: ${fmtMoney(b.overdue)})`:''}\nحد الائتمان: ${fmtMoney(c.creditLimit)}`;
+  return { reply:t, data:b };
+}
+H.CUSTOMER_BALANCE = (a, e) => { const c = needCustomer(a,e); if (!c) return { askCustomer:true }; return balanceReply(c, a); };
+function invLine(i){ const st = invoiceStatus(i); return `• ${i.id} — ${fmtDateAr(i.date)} — ${fmtMoney(i.amount)} — ${STATUS_AR[st]}${i.remaining>0?` (متبقي ${fmtMoney(i.remaining)})`:''}`; }
+H.LAST_INVOICE = (a, e) => {
+  const c = needCustomer(a,e); if (!c) return { askCustomer:true };
+  const inv = customerInvoices(c.id).slice().sort((x,y)=> x.date<y.date?1:-1)[0];
+  if (!inv) return { reply:`مفيش فواتير مسجلة على ${c.company} لحد دلوقتي.` };
+  const st = invoiceStatus(inv);
+  return { reply:`آخر فاتورة على *${c.company}*:\n📄 *${inv.id}* — ${fmtDateAr(inv.date)}\nالمشروع: ${inv.project}\nالبنود:\n${inv.items.map(x=>`  - ${x.name}: ${fmtN(x.qty)} ${x.unit} × ${fmtN(x.price)}`).join('\n')}\nالإجمالي شامل الضريبة: *${fmtMoney(inv.amount)}*\nالمدفوع: ${fmtMoney(inv.paid)} — المتبقي: ${fmtMoney(inv.remaining)}\nالحالة: ${STATUS_AR[st]} — الاستحقاق ${fmtDateAr(inv.dueDate)}`, attach:{name:inv.id+'.pdf', kind:'فاتورة PDF'}, data:{invoice:inv.id} };
+};
+function findInvoice(a, e){
+  if (!e.invoice_no) return { ask:true };
+  const inv = S.invoices.find(i => i.id === 'INV-'+e.invoice_no);
+  if (!inv) return { reply:`مش لاقي فاتورة برقم ${e.invoice_no}. اتأكد من الرقم وابعته تاني.` };
+  if (a.role==='customer' && inv.customerId !== a.customer.id) return { reply:`الفاتورة ${inv.id} مش مسجلة على حسابك، فمش هقدر أعرض تفاصيلها 🔒`, denied:true };
+  if (a.role==='sales') return { reply:'تفاصيل الفواتير من صلاحيات المحاسبة. تقدر تطلب الرصيد الإجمالي للعميل بس.', denied:true };
+  return { inv };
+}
+H.INVOICE_STATUS = (a, e) => {
+  const r = findInvoice(a, e); if (r.ask) return { askInvoice:true }; if (!r.inv) return r;
+  const inv = r.inv, st = invoiceStatus(inv);
+  const pays = S.payments.filter(p=>p.invoiceId===inv.id);
+  let t = `📄 *${inv.id}* — ${customerName(inv.customerId)}\nالقيمة: ${fmtMoney(inv.amount)}\nالحالة: *${STATUS_AR[st]}*`;
+  if (pays.length) t += `\nالمدفوعات:\n${pays.map(p=>`  - ${fmtDateAr(p.date)}: ${fmtMoney(p.amount)} (${p.method})`).join('\n')}`;
+  if (inv.remaining>0) t += `\nالمتبقي: ${fmtMoney(inv.remaining)} — الاستحقاق ${fmtDateAr(inv.dueDate)}${st==='overdue'?` (متأخرة ${daysBetween(inv.dueDate,TODAY)} يوم)`:''}`;
+  else t += `\n✅ مسددة بالكامل`;
+  return { reply:t, data:{invoice:inv.id, status:st} };
+};
+H.INVOICE_DUE_DATE = (a, e) => {
+  if (!e.invoice_no && a.role==='customer'){
+    const open = customerInvoices(a.customer.id).filter(i=>i.remaining>0).sort((x,y)=> x.dueDate<y.dueDate?-1:1);
+    if (!open.length) return { reply:'مفيش فواتير مفتوحة على حسابك 🎉' };
+    return { reply:`مواعيد استحقاق فواتيرك المفتوحة:\n${open.slice(0,6).map(i=>`• ${i.id}: ${fmtDateAr(i.dueDate)} — متبقي ${fmtMoney(i.remaining)}${i.dueDate<fmtDate(TODAY)?' ⚠️ متأخرة':''}`).join('\n')}` };
+  }
+  const r = findInvoice(a, e); if (r.ask) return { askInvoice:true }; if (!r.inv) return r;
+  const inv = r.inv; const d = daysBetween(TODAY, inv.dueDate);
+  return { reply:`📄 ${inv.id} — تاريخ الاستحقاق: *${fmtDateAr(inv.dueDate)}*\n${inv.remaining<=0?'✅ الفاتورة مسددة بالكامل.': d>=0?`باقي ${d} يوم على الاستحقاق. المتبقي ${fmtMoney(inv.remaining)}.`:`⚠️ متأخرة ${-d} يوم. المتبقي ${fmtMoney(inv.remaining)}.`}` };
+};
+H.LIST_INVOICES = (a, e) => {
+  const c = needCustomer(a,e); if (!c) return { askCustomer:true };
+  if (a.role==='sales') return { reply:'قائمة الفواتير من صلاحيات المحاسبة. تقدر تطلب الرصيد الإجمالي للعميل.', denied:true };
+  let list = customerInvoices(c.id).sort((x,y)=> x.date<y.date?1:-1);
+  const openOnly = e.invoice_filter==='open' || /مفتوح|غير مدفوع|مش مدفوع|متبقي|المستحقه|اللي عليا/.test(norm(e._raw||''));
+  if (openOnly) list = list.filter(i=>i.remaining>0);
+  if (!list.length) return { reply: openOnly ? `مفيش فواتير مفتوحة على ${c.company} 🎉` : `مفيش فواتير مسجلة على ${c.company}.` };
+  const shown = list.slice(0,8);
+  return { reply:`${openOnly?'الفواتير المفتوحة':'آخر الفواتير'} على *${c.company}* (${list.length}):\n${shown.map(invLine).join('\n')}${list.length>8?`\n… و${list.length-8} فاتورة أخرى. اطلب "كشف حساب" للتفاصيل الكاملة.`:''}\n\n*إجمالي المتبقي: ${fmtMoney(sum(list,i=>i.remaining))}*`, data:{count:list.length} };
+};
+H.PAYMENT_SEARCH = (a, e) => {
+  const c = needCustomer(a,e); if (!c) return { askCustomer:true };
+  if (a.role==='sales') return { reply:'المدفوعات من صلاحيات المحاسبة.', denied:true };
+  const pays = S.payments.filter(p=>p.customerId===c.id).sort((x,y)=> x.date<y.date?1:-1);
+  if (!pays.length) return { reply:`مفيش مدفوعات مسجلة على ${c.company} لحد دلوقتي.` };
+  return { reply:`آخر مدفوعات *${c.company}*:\n${pays.slice(0,5).map(p=>`• ${fmtDateAr(p.date)} — ${fmtMoney(p.amount)} — ${p.method} — ${p.invoiceId} (مرجع ${p.reference})`).join('\n')}\n\nإجمالي المدفوع: *${fmtMoney(sum(pays,p=>p.amount))}*`, data:{count:pays.length} };
+};
+H.STATEMENT = (a, e) => {
+  const c = needCustomer(a,e); if (!c) return { askCustomer:true };
+  if (a.role==='sales') return { reply:'كشف الحساب من صلاحيات المحاسبة.', denied:true };
+  const rows = [];
+  customerInvoices(c.id).forEach(i => rows.push({d:i.date, doc:i.id, debit:i.amount, credit:0}));
+  S.payments.filter(p=>p.customerId===c.id).forEach(p => rows.push({d:p.date, doc:p.id, debit:0, credit:p.amount}));
+  rows.sort((x,y)=> x.d<y.d?-1:1); let bal = 0; rows.forEach(r => { bal += r.debit - r.credit; r.bal = bal; });
+  const last = rows.slice(-8);
+  return { reply:`📑 *كشف حساب ${c.company}*\nحتى ${fmtDateAr(TODAY)}\n\n${last.map(r=>`${fmtDate(r.d)} | ${r.doc} | ${r.debit?'مدين '+fmtN(r.debit):'دائن '+fmtN(r.credit)} | رصيد ${fmtN(r.bal)}`).join('\n')}\n\n*الرصيد النهائي: ${fmtMoney(bal)}*\n(الكشف الكامل في الملف المرفق)`, attach:{name:`Statement_${c.id}.pdf`, kind:'كشف حساب PDF'}, data:{lines:rows.length, balance:bal} };
+};
+H.QUOTATION_STATUS = (a, e) => {
+  let q = null;
+  if (e.quotation_no) q = S.quotations.find(x=>x.id==='QT-'+e.quotation_no);
+  else if (a.role==='customer') q = S.quotations.filter(x=>x.customerId===a.customer.id).sort((x,y)=> x.date<y.date?1:-1)[0];
+  else if (e.customer_id) q = S.quotations.filter(x=>x.customerId===e.customer_id).sort((x,y)=> x.date<y.date?1:-1)[0];
+  if (!q) return { reply: e.quotation_no ? `مش لاقي عرض سعر برقم ${e.quotation_no}.` : 'مش لاقي عروض أسعار على حسابك. تحب تطلب عرض سعر جديد؟' };
+  if (a.role==='customer' && q.customerId!==a.customer.id) return { reply:`عرض السعر ${q.id} مش مسجل على حسابك 🔒`, denied:true };
+  const stMsg = { draft:'لسه بيتجهز', pending_approval:'بانتظار اعتماد التسعير — هيوصلك خلال وقت قصير', sent:'مرسل ومنتظرين ردكم', accepted:'مقبول ✅ وتم فتح أمر شغل', rejected:'مرفوض', expired:'انتهت صلاحيته — نقدر نجدده لو تحب' }[q.status];
+  return { reply:`📝 *${q.id}* — ${customerName(q.customerId)}\n${q.items.map(x=>`${x.name}: ${fmtN(x.qty)} ${x.unit}`).join('\n')}\nالإجمالي: ${q.status==='pending_approval'||q.status==='draft'?'(بعد الاعتماد)':fmtMoney(q.total)}\nالحالة: *${STATUS_AR[q.status]}* — ${stMsg}\nصالح حتى ${fmtDateAr(q.validUntil)}`, data:{quotation:q.id, status:q.status} };
+};
+H.OPEN_QUOTATIONS = (a) => {
+  const list = S.quotations.filter(q=>q.status==='sent'||q.status==='pending_approval').sort((x,y)=> x.date<y.date?1:-1);
+  if (!list.length) return { reply:'مفيش عروض أسعار مفتوحة حالياً.' };
+  return { reply:`عروض الأسعار المفتوحة (${list.length}):\n${list.slice(0,10).map(q=>`• ${q.id} — ${customerName(q.customerId)} — ${fmtMoney(q.total)} — ${STATUS_AR[q.status]} — من ${daysBetween(q.date,TODAY)} يوم`).join('\n')}${list.length>10?`\n… و${list.length-10} عرض آخر`:''}\n\nإجمالي القيمة: *${fmtMoney(sum(list,q=>q.total))}*`, data:{count:list.length} };
+};
+H.FOLLOW_UP = (a, e, ctx, trace) => {
+  const stale = S.quotations.filter(q=>q.status==='sent' && daysBetween(q.date,TODAY)>=7);
+  if (!stale.length) return { reply:'كل العروض المرسلة لسه جديدة (أقل من 7 أيام). مفيش حاجة تحتاج متابعة دلوقتي.' };
+  const targets = stale.slice(0,8);
+  const notify = targets.map(q => { const c = byId(S.customers,q.customerId); q.followUps = (q.followUps||0)+1; q.lastFollowUp = fmtDate(TODAY); return { phone:c.phone, text:`أهلاً أستاذ ${firstName(c.name)} 👋\nبنذكّر حضرتك بعرض السعر *${q.id}* (${q.items[0].name} — ${fmtMoney(q.total)}) المرسل بتاريخ ${fmtDateAr(q.date)}.\nلو في أي استفسار أو تعديل قولنا وإحنا جاهزين 🙏`, label:`تذكير ${q.id} → ${c.company}` }; });
+  audit(a.name, 'FOLLOW_UP', 'quotation', targets.map(q=>q.id).join(','), `إرسال ${targets.length} تذكير`);
+  return { reply:`تم إرسال رسالة متابعة لـ *${targets.length}* عميل على عروض أسعار عدّى عليها أكتر من 7 أيام بدون رد:\n${targets.map(q=>`• ${q.id} — ${customerName(q.customerId)} — ${daysBetween(q.date,TODAY)} يوم`).join('\n')}${stale.length>8?`\n(باقي ${stale.length-8} عرض هيتبعتوا في الدفعة الجاية)`:''}`, notify, data:{sent:targets.length} };
+};
+H.SALES_REPORT = (a, e) => {
+  const period = e.period==='month' ? 30 : 7; const from = fmtDate(addDays(TODAY,-period));
+  const q = S.quotations.filter(x=>x.date>=from), acc = q.filter(x=>x.status==='accepted');
+  const leads = S.leads.filter(x=>x.date>=from), orders = S.orders.filter(x=>x.date>=from);
+  const inv = S.invoices.filter(x=>x.date>=from && x.status!=='draft'), pays = S.payments.filter(x=>x.date>=from);
+  return { reply:`📊 *تقرير المبيعات — آخر ${period} يوم*\n\nفرص جديدة (Leads): ${leads.length}\nعروض أسعار: ${q.length} بقيمة ${fmtMoney(sum(q,x=>x.total))}\nعروض مقبولة: ${acc.length} بقيمة ${fmtMoney(sum(acc,x=>x.total))}\nنسبة القبول: ${q.length?Math.round(acc.length/q.length*100):0}%\nأوامر شغل: ${orders.length}\n\nفواتير صادرة: ${inv.length} بقيمة ${fmtMoney(sum(inv,x=>x.amount))}\nتحصيلات: ${pays.length} دفعة بقيمة ${fmtMoney(sum(pays,x=>x.amount))}`, attach:{name:`Sales_Report_${period}d.pdf`, kind:'تقرير PDF'}, data:{period, quotes:q.length} };
+};
+H.WHO_OWES = (a, e) => {
+  const days = e.days || S.settings.overdueDays;
+  const cut = fmtDate(addDays(TODAY,-days));
+  const map = {};
+  S.invoices.forEach(i => { if (i.remaining>0 && i.dueDate<=cut){ (map[i.customerId] = map[i.customerId]||{amt:0,n:0,oldest:i.dueDate}); map[i.customerId].amt += i.remaining; map[i.customerId].n++; if (i.dueDate<map[i.customerId].oldest) map[i.customerId].oldest=i.dueDate; } });
+  const rows = Object.entries(map).map(([cid,v])=>({cid, ...v})).sort((x,y)=>y.amt-x.amt);
+  if (!rows.length) return { reply:`مفيش عملاء متأخرين أكتر من ${days} يوم 🎉` };
+  return { reply:`العملاء المتأخرين أكتر من *${days} يوم* (${rows.length} عميل):\n${rows.slice(0,10).map((r,i)=>`${i+1}. ${customerName(r.cid)} — *${fmtMoney(r.amt)}* — ${r.n} فاتورة — أقدم استحقاق ${fmtDateAr(r.oldest)}`).join('\n')}${rows.length>10?`\n… و${rows.length-10} عميل آخر`:''}\n\n*إجمالي المتأخر: ${fmtMoney(sum(rows,r=>r.amt))}*`, attach:{name:`Overdue_${days}d.xlsx`, kind:'تقرير Excel'}, data:{customers:rows.length, total:sum(rows,r=>r.amt)} };
+};
+H.CUSTOMER_SEARCH = (a, e) => {
+  const c = e.customer_id ? byId(S.customers,e.customer_id) : null;
+  if (!c) return e.customer_name || e.company_text ? { reply:`مش لاقي عميل باسم "${e.customer_name||e.company_text}". جرّب اسم الشركة بدون "شركة/مؤسسة" أو اسم المسؤول.` } : { askCustomer:true };
+  const b = customerBalance(c.id); const rep = byId(S.users,c.salesRep);
+  let t = `👤 *${c.company}* (${c.id})\nالمسؤول: ${c.name}\nالجوال: ${c.phone}\nالمدينة: ${c.city}\nالرقم الضريبي: ${c.vat}\nحد الائتمان: ${fmtMoney(c.creditLimit)}\nالحالة: ${STATUS_AR[c.status]}\nمندوب المبيعات: ${rep?rep.name:'—'}`;
+  if (a.role!=='sales') t += `\nالرصيد المستحق: ${fmtMoney(b.remaining)} (${b.count} فاتورة)`; else t += `\nالرصيد المستحق: ${fmtMoney(b.remaining)}`;
+  return { reply:t, data:{customer:c.id} };
+};
+/* flows that end in a business action */
+H.CREATE_QUOTATION = (a, e, ctx) => ({ startFlow:'CREATE_QUOTATION' });
+H.RECORD_PAYMENT = (a, e) => ({ startFlow:'RECORD_PAYMENT' });
+H.CREATE_INVOICE = (a, e) => ({ startFlow:'CREATE_INVOICE' });
+H.CREATE_CUSTOMER = (a, e) => ({ startFlow:'CREATE_CUSTOMER' });
+H.CREATE_LEAD = (a, e) => ({ startFlow:'CREATE_LEAD' });
+H.UNKNOWN = (a, e, ctx, trace, raw) => ({ handoff:{reason:'intent غير مفهوم'}, reply:'مش متأكد إني فهمت طلبك بالظبط 🙏\nحوّلت رسالتك لزميلنا وهيرد عليك في أقرب وقت.\n\nأو تقدر تكتب "مساعدة" عشان تشوف اللي أقدر أعمله.' });
+
+/* execute a completed flow (after confirmation) */
+function executeFlow(ctx, a, trace){
+  const s = ctx.slots; const needsApproval = t => !!S.settings.approvals[t];
+  if (ctx.flow==='CREATE_QUOTATION'){
+    let customer = s.customer ? byId(S.customers, s.customer) : a.customer;
+    let leadId = null;
+    if (!customer){ // unknown number → lead
+      const p = productById(s.service);
+      const lead = { id:'LD-'+(S.counters.ld++), name:s.person_name||'—', phone:a.phone, company:s.company_text==='—'?'':(s.company_text||''), service:s.service, serviceName:p.name, location:s.location||'', qty:s.quantity, unit:ctx.unit||p.unit, thickness:s.thickness&&s.thickness!=='unknown'&&s.thickness!=='n/a'?s.thickness+' سم':'', date:fmtDate(TODAY), status:'new', source:'whatsapp', assignedTo:'U-S1', createdAt:new Date().toISOString() };
+      S.leads.unshift(lead); leadId = lead.id; audit('bot','CREATE_LEAD','lead',lead.id,`من رقم ${a.phone}`);
+    }
+    const p = productById(s.service); const qty = s.quantity; const items=[{productId:p.id, name:p.name, unit:p.unit, qty, price:p.price, total:qty*p.price}];
+    const subtotal = sum(items,x=>x.total), vat = Math.round(subtotal*0.15);
+    const q = { id:'QT-'+(S.counters.qt++), customerId: customer?customer.id:null, leadId, contactPhone:a.phone, date:fmtDate(TODAY), validUntil:fmtDate(addDays(TODAY,15)), items, subtotal, vat, total:subtotal+vat, status: needsApproval('SEND_QUOTATION')?'pending_approval':'sent', location:s.location||'', thickness:s.thickness, notes:`طلب عبر واتساب من ${a.name}`, requestedVia:'whatsapp', salesRep: customer?customer.salesRep:'U-S1', followUps:0, createdAt:new Date().toISOString() };
+    S.quotations.unshift(q); audit(a.name,'CREATE_QUOTATION','quotation',q.id,`${p.name} × ${qty} — ${fmtMoney(q.total)} (تسعير تلقائي من قائمة الأسعار)`);
+    const rep = byId(S.users, q.salesRep); const notify = [];
+    if (rep) notify.push({ phone:rep.phone, text:`🔔 طلب تسعير جديد *${q.id}*\nمن: ${customer?customer.company:(s.person_name||'')+' (عميل جديد — '+leadId+')'}\n${p.name}: ${fmtN(qty)} ${p.unit}${s.location?' — '+s.location:''}${s.thickness&&s.thickness!=='unknown'&&s.thickness!=='n/a'?' — سمك '+s.thickness+' سم':''}\nالتسعير المبدئي: ${fmtMoney(q.total)}`, label:`إشعار مبيعات → ${rep.name}` });
+    if (q.status==='pending_approval'){
+      const ap = createApproval('SEND_QUOTATION', {quotationId:q.id, customer: customer?customer.company:(s.person_name||'عميل جديد'), total:q.total, summary:`${p.name} × ${fmtN(qty)} ${p.unit}`}, a, 'admin');
+      const adm = S.users.find(u=>u.role==='admin'); if (adm) notify.push({ phone:adm.phone, text:`🔔 عرض سعر *${q.id}* بانتظار اعتمادك (${ap.id})\n${customer?customer.company:s.person_name||''} — ${p.name} × ${fmtN(qty)} — ${fmtMoney(q.total)}`, label:`طلب اعتماد → ${adm.name}` });
+      return { reply:`تم تسجيل طلبك ✅\nرقم الطلب: *${q.id}*\n${p.name}: ${fmtN(qty)} ${p.unit}${s.location?'\nالموقع: '+s.location:''}\n\nعرض السعر بيتراجع من قسم التسعير وهيوصلك هنا على واتساب بمجرد اعتماده 📎`, notify, data:{quotation:q.id, approval:ap.id, lead:leadId} };
+    }
+    return { reply:quotationMessage(q), attach:{name:q.id+'.pdf', kind:'عرض سعر PDF'}, notify, data:{quotation:q.id, lead:leadId} };
+  }
+  if (ctx.flow==='RECORD_PAYMENT'){
+    const customer = s.customer ? byId(S.customers, s.customer) : a.customer;
+    let inv = null;
+    if (s.invoice_no && s.invoice_no!=='oldest') inv = S.invoices.find(i=>i.id==='INV-'+s.invoice_no);
+    if (!inv) inv = customerInvoices(customer.id).filter(i=>i.remaining>0).sort((x,y)=> x.dueDate<y.dueDate?-1:1)[0] || null;
+    if (inv && inv.customerId!==customer.id){ delete ctx.slots.invoice_no; ctx.confirming=false; ctx.missing=['invoice_no']; ctx.asked='invoice_no'; return { reply:`الفاتورة ${inv.id} مش على حساب ${customer.company} 🔒\nابعت رقم فاتورة صحيح، أو اكتب "أقدم فاتورة".`, reopen:true }; }
+    const payload = { customerId:customer.id, customer:customer.company, amount:s.amount, method:s.payment_method, invoiceId: inv?inv.id:null, reference: ctx.reference||'', reportedBy:a.name };
+    if (needsApproval('RECORD_PAYMENT')){
+      const ap = createApproval('RECORD_PAYMENT', payload, a, a.role==='accountant'?'admin':'accountant');
+      const acc = S.users.find(u=>u.role===(a.role==='accountant'?'admin':'accountant'));
+      const notify = acc ? [{ phone:acc.phone, text:`🔔 طلب تسجيل دفعة *${ap.id}*\n${customer.company}: ${fmtMoney(s.amount)} — ${s.payment_method}${inv?' — '+inv.id:''}\nمن: ${a.name}`, label:`طلب اعتماد → ${acc.name}` }] : [];
+      return { reply:`تم استلام بيانات الدفعة ✅\nالعميل: ${customer.company}\nالمبلغ: ${fmtMoney(s.amount)} — ${s.payment_method}${inv?'\nالفاتورة: '+inv.id:''}\n\nالدفعة *بانتظار مراجعة المحاسب* (${ap.id}) وهنبلغك بمجرد ترحيلها.`, notify, data:{approval:ap.id} };
+    }
+    const pay = applyPayment(payload, a.name);
+    return { reply:`تم ترحيل الدفعة ✅ *${pay.id}*\n${fmtMoney(pay.amount)} — ${pay.method} — على ${pay.invoiceId}`, data:{payment:pay.id} };
+  }
+  if (ctx.flow==='CREATE_INVOICE'){
+    const customer = byId(S.customers, s.customer);
+    const payload = { customerId:customer.id, customer:customer.company, amount:s.amount, description:s.description, requestedBy:a.name };
+    if (needsApproval('CREATE_INVOICE') || s.amount >= S.settings.approvalThreshold){
+      const ap = createApproval('CREATE_INVOICE', payload, a, a.role==='accountant'?'admin':'accountant');
+      const acc = S.users.find(u=>u.role===(a.role==='accountant'?'admin':'accountant'));
+      const notify = acc ? [{ phone:acc.phone, text:`🔔 مسودة فاتورة *${ap.id}* تحتاج اعتمادك\n${customer.company} — ${fmtMoney(s.amount)}\n${s.description}\nمن: ${a.name}`, label:`طلب اعتماد → ${acc.name}` }] : [];
+      return { reply:`تم إنشاء *مسودة فاتورة* لـ ${customer.company} بقيمة ${fmtMoney(s.amount)} (${ap.id}).\nالفاتورة مش هتصدر غير بعد اعتماد ${a.role==='accountant'?'المدير':'المحاسب'} ✋`, notify, data:{approval:ap.id} };
+    }
+    const inv = applyInvoice(payload, a.name);
+    return { reply:`تم إصدار الفاتورة ✅ *${inv.id}* لـ ${customer.company} بقيمة ${fmtMoney(inv.amount)}`, data:{invoice:inv.id} };
+  }
+  if (ctx.flow==='CREATE_CUSTOMER'){
+    const payload = { company:s.company_text, name:s.person_name, phone:s.phone, salesRep: a.role==='sales'?a.id:'U-S1', requestedBy:a.name };
+    if (needsApproval('CREATE_CUSTOMER')){
+      const ap = createApproval('CREATE_CUSTOMER', payload, a, 'admin');
+      return { reply:`تم تسجيل طلب إضافة العميل *${s.company_text}* (${ap.id}) وبانتظار اعتماد المدير.`, data:{approval:ap.id} };
+    }
+    const c = applyCustomer(payload, a.name);
+    return { reply:`تم إضافة العميل ✅\n*${c.company}* — ${c.id}\nالمسؤول: ${c.name} — ${c.phone}\nدلوقتي الرقم ده يقدر يستخدم المساعد كعميل.`, data:{customer:c.id} };
+  }
+  if (ctx.flow==='CREATE_LEAD'){
+    const p = productById(s.service);
+    const lead = { id:'LD-'+(S.counters.ld++), name:s.person_name, phone:s.phone, company:'', service:p.id, serviceName:p.name, location:s.location||'', qty:null, unit:p.unit, thickness:'', date:fmtDate(TODAY), status:'new', source:'whatsapp', assignedTo: a.role==='sales'?a.id:'U-S1', createdAt:new Date().toISOString() };
+    S.leads.unshift(lead); audit(a.name,'CREATE_LEAD','lead',lead.id,`${lead.name} — ${p.name}`);
+    return { reply:`تم تسجيل الفرصة ✅ *${lead.id}*\n${lead.name} — ${lead.phone}\n${p.name} — ${lead.location}`, data:{lead:lead.id} };
+  }
+  return { reply:'تم.' };
+}
+function quotationMessage(q){
+  return `📝 *عرض سعر ${q.id}*\n${S.settings.companyName}\nإلى: ${q.customerId?customerName(q.customerId):'—'}\n\n${q.items.map(x=>`${x.name}\n${fmtN(x.qty)} ${x.unit} × ${fmtN(x.price)} = ${fmtN(x.total)}`).join('\n')}\n\nالإجمالي: ${fmtN(q.subtotal)}\nضريبة القيمة المضافة 15%: ${fmtN(q.vat)}\n*الصافي: ${fmtMoney(q.total)}*\nصالح حتى ${fmtDateAr(q.validUntil)}\n\nللموافقة اكتب "موافق على ${q.id}" أو تواصل مع مندوبك.`;
+}
+
+/* ---------- G. approvals, notifications, apply actions ---------- */
+function createApproval(type, payload, actor, approverRole){
+  const ap = { id:'AP-'+(S.counters.ap++), type, payload, requestedBy:actor.name, requestedByPhone:actor.phone, requesterRole:actor.role, approverRole, requestedAt:new Date().toISOString(), status:'pending', decidedBy:null, decidedAt:null, note:'' };
+  S.approvals.unshift(ap); audit(actor.name, 'REQUEST_'+type, 'approval', ap.id, JSON.stringify(payload).slice(0,160)); save(); return ap;
+}
+function applyPayment(p, by){
+  const pay = { id:'PAY-'+(S.counters.pay++), customerId:p.customerId, invoiceId:p.invoiceId, date:fmtDate(TODAY), amount:p.amount, method:p.method, reference:p.reference||('WA'+Date.now().toString().slice(-6)), recordedBy:by };
+  S.payments.unshift(pay);
+  if (p.invoiceId){ const inv = byId(S.invoices,p.invoiceId); if (inv){ const applied = Math.min(inv.remaining, p.amount); inv.paid += applied; inv.remaining -= applied; } }
+  audit(by,'RECORD_PAYMENT','payment',pay.id,`${fmtMoney(pay.amount)} — ${pay.method} — ${pay.invoiceId||'بدون فاتورة'}`); save(); return pay;
+}
+function applyInvoice(p, by){
+  const subtotal = Math.round(p.amount/1.15), vat = p.amount - subtotal;
+  const inv = { id:'INV-'+(S.counters.inv++), customerId:p.customerId, date:fmtDate(TODAY), dueDate:fmtDate(addDays(TODAY,30)), project:p.description||'', items:[{productId:'', name:p.description||'أعمال', unit:'مقطوعية', qty:1, price:subtotal, total:subtotal}], subtotal, vat, amount:p.amount, paid:0, remaining:p.amount, status:'unpaid', createdBy:by };
+  S.invoices.unshift(inv); audit(by,'CREATE_INVOICE','invoice',inv.id,`${customerName(inv.customerId)} — ${fmtMoney(inv.amount)}`); save(); return inv;
+}
+function applyCustomer(p, by){
+  const c = { id:'C-'+String(S.counters.cust++).padStart(3,'0'), company:p.company, core:p.company.replace(/^(شركة|مؤسسة|شركه|مؤسسه)\s+/,'').split(' ').slice(0,2).join(' '), name:p.name, phone:p.phone, vat:'', city:'', creditLimit:50000, status:'active', salesRep:p.salesRep||'U-S1', createdAt:fmtDate(TODAY) };
+  S.customers.push(c); audit(by,'CREATE_CUSTOMER','customer',c.id,c.company); save(); return c;
+}
+function decideApproval(id, approve, by, note){
+  const ap = byId(S.approvals, id); if (!ap || ap.status!=='pending') return null;
+  ap.status = approve ? 'approved' : 'rejected'; ap.decidedBy = by; ap.decidedAt = new Date().toISOString(); ap.note = note||'';
+  const p = ap.payload; const out = { notify:[] };
+  if (approve){
+    if (ap.type==='RECORD_PAYMENT'){ const pay = applyPayment(p, by); out.result = pay.id; const c = byId(S.customers,p.customerId); if (c) out.notify.push({phone:c.phone, text:`✅ تم ترحيل دفعتك *${pay.id}*\n${fmtMoney(pay.amount)} — ${pay.method}${pay.invoiceId?' — على الفاتورة '+pay.invoiceId:''}\nشكراً لسدادكم 🙏`}); if (ap.requestedByPhone && (!c || c.phone!==ap.requestedByPhone)) out.notify.push({phone:ap.requestedByPhone, text:`✅ تم اعتماد طلبك ${ap.id} — الدفعة ${pay.id} اتسجلت.`}); }
+    else if (ap.type==='CREATE_INVOICE'){ const inv = applyInvoice(p, by); out.result = inv.id; const c = byId(S.customers,p.customerId); if (c) out.notify.push({phone:c.phone, text:`📄 تم إصدار فاتورة جديدة *${inv.id}* على حسابكم بقيمة ${fmtMoney(inv.amount)}\n${inv.project}\nالاستحقاق: ${fmtDateAr(inv.dueDate)}`}); if (ap.requestedByPhone) out.notify.push({phone:ap.requestedByPhone, text:`✅ تم اعتماد الفاتورة ${inv.id} (${ap.id}) بواسطة ${by}.`}); }
+    else if (ap.type==='CREATE_CUSTOMER'){ const c = applyCustomer(p, by); out.result = c.id; if (ap.requestedByPhone) out.notify.push({phone:ap.requestedByPhone, text:`✅ تم اعتماد إضافة العميل ${c.company} — ${c.id}`}); }
+    else if (ap.type==='SEND_QUOTATION'){ const q = byId(S.quotations,p.quotationId); if (q){ q.status='sent'; q.date = fmtDate(TODAY); q.validUntil = fmtDate(addDays(TODAY,15)); out.result = q.id; const to = q.contactPhone || (q.customerId ? byId(S.customers,q.customerId).phone : null); if (to) out.notify.push({phone:to, text:quotationMessage(q), attach:{name:q.id+'.pdf', kind:'عرض سعر PDF'}}); audit(by,'SEND_QUOTATION','quotation',q.id,`اعتماد وإرسال — ${fmtMoney(q.total)}`); } }
+  } else {
+    if (ap.type==='SEND_QUOTATION'){ const q = byId(S.quotations,p.quotationId); if (q) q.status='rejected'; }
+    if (ap.requestedByPhone) out.notify.push({phone:ap.requestedByPhone, text:`❌ تم رفض الطلب ${ap.id}${note?' — السبب: '+note:''}`});
+    if (ap.type==='RECORD_PAYMENT' && p.customerId){ const c = byId(S.customers,p.customerId); if (c && c.phone!==ap.requestedByPhone) out.notify.push({phone:c.phone, text:`تعذر ترحيل الدفعة اللي أبلغتنا عنها${note?' — '+note:''}. برجاء التواصل مع الحسابات.`}); }
+  }
+  audit(by, approve?'APPROVE':'REJECT', 'approval', ap.id, `${ap.type}${note?' — '+note:''}`);
+  out.notify.forEach(nt => sendNotification(nt, 'approval'));
+  save(); return out;
+}
+function sendNotification(nt, source){
+  const m = pushMsg(nt.phone, 'in', nt.text, { notification:true, source, attach:nt.attach||null });
+  return m;
+}
+function createHandoff(phone, text, reason, actor){
+  const h = { id:'HO-'+(S.counters.ho++), phone, actor:actor.name, role:actor.role, message:text, reason, status:'open', createdAt:new Date().toISOString(), reply:'' };
+  S.handoffs.unshift(h); audit('bot','HANDOFF','handoff',h.id,reason); save(); return h;
+}
+
+/* ---------- H. the pipeline ---------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function handleIncoming(phone, raw, opts={}){
+  const t0 = performance.now(); const trace = { steps:[], notifications:[], phone, text:raw, startedAt:new Date().toISOString() };
+  let last = t0;
+  const step = (title, status, detail, extra) => { const now = performance.now(); trace.steps.push({ n:trace.steps.length+1, title, status, detail, extra, ms: Math.round(now-last) }); last = now; if (opts.onStep) opts.onStep(trace); };
+  const c = conv(phone);
+  const inMsg = pushMsg(phone, 'out', raw, {});
+  step('استقبال الرسالة (Webhook)', 'ok', `رسالة نصية من ${phone} — ${raw.length} حرف`, { message_id:inMsg.id, channel:'whatsapp (simulated)' });
+
+  const actor = resolveActor(phone);
+  step('تحديد المرسل والدور', actor.role==='unknown'?'warn':'ok', actor.role==='unknown' ? 'الرقم غير مسجل كعميل ولا موظف' : `${actor.name} — ${ROLES[actor.role].label}${actor.customer?' — '+actor.customer.company:''}`, { role:actor.role, id:actor.id });
+
+  const ctx = c.context;
+  const nlu = await classify(raw, actor, ctx, c.messages.slice(-7,-1));
+  nlu.entities._raw = raw;
+  const engLabel = nlu.engine==='ai' ? 'Claude AI' : ('محرك القواعد' + (nlu.fallbackFrom ? ' (احتياطي بعد فشل '+nlu.fallbackFrom+')' : ''));
+  step('فهم النية (AI Intent Detection)', nlu.intent==='UNKNOWN'?'warn':'ok', `${engLabel} → *${nlu.intent}* (${INTENTS[nlu.intent].ar}) — ثقة ${Math.round(nlu.confidence*100)}%`, { intent:nlu.intent, confidence:nlu.confidence, engine:nlu.engine, entities: stripRaw(nlu.entities), flow_answer:nlu.flow_answer||undefined, why:nlu.why, ai_raw: nlu.rawAI });
+
+  let result = null; let intent = nlu.intent; let flowEnded = false; let handoff = null;
+  // ---- flow handling ----
+  if (ctx && ctx.flow && (intent==='FLOW_ANSWER' || intent==='CONFIRM' || intent==='DENY' || intent==='CANCEL' || (ctx.flow==='NEED_CUSTOMER'||ctx.flow==='NEED_INVOICE'))){
+    if (intent==='CANCEL' || (intent==='DENY' && ctx.confirming)){
+      c.context = null; result = { reply: intent==='CANCEL' ? 'تم إلغاء الطلب. لو احتجت حاجة تانية أنا موجود 🙂' : 'تمام، ألغيت الطلب. اكتب الطلب من جديد بالبيانات الصحيحة.' };
+      step('إدارة المحادثة (Flow)', 'ok', `إلغاء ${FLOWS[ctx.flow].title}`);
+    } else if (intent==='CONFIRM' && ctx.confirming){
+      step('التحقق من الصلاحيات (RBAC)', 'ok', `${ROLES[actor.role].label} مسموح له بـ ${ctx.intent}`);
+      result = executeFlow(ctx, actor, trace); if (!result.reopen){ c.context = null; flowEnded = true; }
+      step('تنفيذ العملية (Business Logic)', 'ok', `executeFlow(${ctx.flow})`, result.data);
+    } else {
+      if (ctx.flow==='NEED_CUSTOMER' || ctx.flow==='NEED_INVOICE'){
+        // resolve the missing thing then re-run the original intent
+        fillSlots(ctx, raw, nlu, actor);
+        if (ctx.missing.length){ result = { reply: ctx.flow==='NEED_CUSTOMER' ? 'مش لاقي عميل بالاسم ده. اكتب اسم الشركة زي ما هو مسجل (مثال: النخيل، الأفق).' : 'محتاج رقم الفاتورة (مثال: 1023).' }; step('إدارة المحادثة (Flow)', 'warn', 'لم يتم التعرف على القيمة المطلوبة'); }
+        else { intent = ctx.intent; const ents = Object.assign({}, nlu.entities, ctx.entities||{}); if (ctx.slots.customer) ents.customer_id = ctx.slots.customer; if (ctx.slots.invoice_no) ents.invoice_no = ctx.slots.invoice_no; c.context = null; step('إدارة المحادثة (Flow)', 'ok', `تم تحديد ${slotLabel(ctx.all[0])} → إعادة تنفيذ ${intent}`); result = runIntent(intent, actor, ents, trace, raw, step); }
+      } else {
+        fillSlots(ctx, raw, nlu, actor);
+        if (ctx.missing.length){ result = { reply: nextQuestion(ctx) }; step('إدارة المحادثة (Flow)', 'ok', `${FLOWS[ctx.flow].title}: باقي ${ctx.missing.map(slotLabel).join('، ')}`, { slots: ctx.slots }); }
+        else { ctx.confirming = true; ctx.asked = null; result = { reply: confirmSummary(ctx), buttons:['تأكيد ✅','إلغاء ❌'] }; step('إدارة المحادثة (Flow)', 'ok', `${FLOWS[ctx.flow].title}: البيانات مكتملة — بانتظار التأكيد`, { slots: ctx.slots }); }
+      }
+    }
+  } else {
+    if (ctx && ctx.flow && !['GREETING','THANKS','HELP'].includes(intent)) { c.context = null; step('إدارة المحادثة (Flow)', 'warn', `طلب جديد أثناء ${FLOWS[ctx.flow].title} — تم إلغاء الـFlow السابق`); }
+    if (intent==='CONFIRM' || intent==='DENY' || intent==='FLOW_ANSWER'){ intent = 'UNKNOWN'; nlu.confidence = .4; }
+    if (intent==='CANCEL'){ result = { reply:'مفيش طلب شغال حالياً عشان ألغيه. اكتب طلبك وأنا جاهز 🙂' }; step('إدارة المحادثة (Flow)', 'ok', 'لا يوجد Flow نشط'); }
+    else result = runIntent(intent, actor, nlu.entities, trace, raw, step);
+  }
+  // ---- handoff ----
+  if (result.handoff){ handoff = createHandoff(phone, raw, result.handoff.reason, actor); const adm = S.users.find(u=>u.role==='admin'); if (adm) (result.notify = result.notify||[]).push({ phone:adm.phone, text:`🙋 تحويل بشري *${handoff.id}*\nمن: ${actor.name} (${ROLES[actor.role].label}) — ${phone}\nالرسالة: "${raw}"\nالسبب: ${result.handoff.reason}`, label:`تحويل بشري → ${adm.name}` }); step('تحويل لموظف (Human Handoff)', 'warn', `${handoff.id} — ${result.handoff.reason}`); }
+  // ---- reply ----
+  const replies = Array.isArray(result.reply) ? result.reply : [result.reply];
+  step('صياغة الرد', 'ok', `${replies.length} رسالة${result.attach?' + مرفق '+result.attach.name:''}${result.buttons?' + أزرار تفاعلية':''}`);
+  if (!opts.instant) { if (opts.onTyping) opts.onTyping(true); await sleep(S.settings.typingDelay); if (opts.onTyping) opts.onTyping(false); }
+  const outMsgs = replies.map((r,i) => pushMsg(phone, 'in', r, { intent, attach: i===replies.length-1 ? result.attach||null : null, buttons: i===replies.length-1 ? result.buttons||null : null }));
+  (result.notify||[]).forEach(nt => { sendNotification(nt, 'bot'); trace.notifications.push({ to:nt.phone, toName:(resolveActor(nt.phone).name), text:nt.text, label:nt.label||'إشعار' }); });
+  const nOut = outMsgs.length + (result.notify||[]).length;
+  const totalMs = Math.round(performance.now()-t0);
+  step('إرسال الرد (WhatsApp API)', 'ok', `${nOut} رسالة صادرة — التكلفة التقديرية ${fmtN(nOut*S.settings.msgCost,2)} ريال — الزمن الكلي ${totalMs}ms`);
+  const success = intent!=='UNKNOWN' && !result.denied;
+  if (ctx && ctx.flow && ['FLOW_ANSWER','CONFIRM','DENY','CANCEL'].includes(intent)) intent = ctx.intent || intent;
+  logRequest({ phone, role:actor.role, actor:actor.name, text:raw, intent, engine:nlu.engine, confidence:nlu.confidence, success, denied:!!result.denied, handoff:!!handoff, latency: totalMs, outMsgs:nOut, aiCall: nlu.engine==='ai', flowEnded });
+  trace.totalMs = totalMs; trace.intent = intent; trace.result = result;
+  save();
+  return { trace, result, outMsgs };
+}
+function stripRaw(e){ const o = Object.assign({}, e); delete o._raw; delete o.numbers; return o; }
+function runIntent(intent, actor, ents, trace, raw, step){
+  // RBAC
+  const allowed = (PERMS[actor.role]||[]).includes(intent);
+  if (!allowed){
+    step('التحقق من الصلاحيات (RBAC)', 'bad', `${ROLES[actor.role].label} غير مسموح له بـ ${intent}`);
+    if (actor.role==='unknown') return { reply:`رقمك مش مسجل عندنا كعميل، فمش هقدر أعرض بيانات حسابات 🔒\n\n• لو أنت عميل حالي: ابعت اسم الشركة ورقم العميل وهيتم ربط رقمك من خلال الحسابات.\n• لو محتاج خدمة: اكتب "عايز عرض سعر" وأنا هساعدك.`, denied:true, handoff:{reason:'رقم غير مسجل يطلب بيانات'} };
+    return { reply:`الطلب ده (${INTENTS[intent].ar}) خارج صلاحيات ${ROLES[actor.role].label} 🔒\nلو محتاجه اتواصل مع ${intent.includes('INVOICE')||intent.includes('PAYMENT')||intent==='STATEMENT'||intent==='WHO_OWES'?'المحاسب':'المدير'}.`, denied:true };
+  }
+  step('التحقق من الصلاحيات (RBAC)', 'ok', `${ROLES[actor.role].label} مسموح له بـ ${intent}${SENSITIVE.includes(intent)?' — عملية حساسة (تحتاج اعتماد)':''}`);
+  const h = H[intent] || H.UNKNOWN;
+  let res = h(actor, ents, null, trace, raw);
+  if (res.askCustomer){ const cx = startFlow('NEED_CUSTOMER', actor); cx.intent = intent; cx.entities = ents; cx.asked='customer'; conv(actor.phone).context = cx; step('تنفيذ العملية (Business Logic)', 'warn', `${intent} يحتاج تحديد العميل`); return { reply: ents.customer_name ? `مش لاقي عميل باسم "${ents.customer_name}". اكتب اسم الشركة زي ما هو مسجل.` : SLOT_Q.customer }; }
+  if (res.askInvoice){ const cx = startFlow('NEED_INVOICE', actor); cx.intent = intent; cx.entities = ents; cx.asked='invoice_no'; conv(actor.phone).context = cx; step('تنفيذ العملية (Business Logic)', 'warn', `${intent} يحتاج رقم الفاتورة`); return { reply:'رقم الفاتورة كام؟ (مثال: 1023)' }; }
+  if (res.startFlow){
+    const cx = startFlow(res.startFlow, actor, { entities: ents, flow_answer: null }, raw); conv(actor.phone).context = cx;
+    if (cx.missing.length){ step('تنفيذ العملية (Business Logic)', 'ok', `بدء ${FLOWS[cx.flow].title} — مستخرج: ${Object.keys(cx.slots).filter(k=>cx.slots[k]!=='n/a').map(slotLabel).join('، ')||'لا شيء'} — ناقص: ${cx.missing.map(slotLabel).join('، ')}`, { slots:cx.slots }); return { reply: nextQuestion(cx) }; }
+    cx.confirming = true; step('تنفيذ العملية (Business Logic)', 'ok', `بدء ${FLOWS[cx.flow].title} — كل البيانات موجودة في الرسالة — بانتظار التأكيد`, { slots:cx.slots }); return { reply: confirmSummary(cx), buttons:['تأكيد ✅','إلغاء ❌'] };
+  }
+  step('تنفيذ العملية + استعلام البيانات', res.denied?'warn':'ok', `${intent} → H.${intent}()${res.data?' — '+Object.entries(res.data).map(([k,v])=>k+': '+(typeof v==='object'?JSON.stringify(v):v)).join(', '):''}`, res.data);
+  return res;
+}
+</script>
+<script>
+/* =====================================================================
+   HESABO Simulator — Part 3: UI (router, screens, charts)
+   ===================================================================== */
+const UI = { screen:'chat', chat:{ phone:null, trace:null, typing:false, busy:false }, approvalsActor:'U-C1', filters:{}, drawer:null, tests:{ running:false, stop:false, progress:0, results:null } };
+const DL = { ns:null };
+(async () => { try { if (window.claude && window.claude.use){ DL.ns = await window.claude.use('downloads'); } } catch(e){} })();
+async function downloadText(filename, text){
+  if (DL.ns){ try { await DL.ns.save({ filename, data:text }); toast('تم حفظ الملف'); return; } catch(e){ if (e && e.code==='declined') return; } }
+  try { await navigator.clipboard.writeText(text); toast('التحميل غير متاح هنا — تم نسخ المحتوى للحافظة'); } catch(e){ toast('التحميل غير متاح في هذا العرض'); }
+}
+const SCREENS = { chat:'محاكي واتساب', approvals:'الموافقات', inbox:'تدخل بشري', dashboard:'لوحة المتابعة', customers:'العملاء', invoices:'الفواتير', payments:'المدفوعات', quotations:'عروض الأسعار', leads:'الفرص وأوامر الشغل', products:'الخدمات وقائمة الأسعار', tests:'اختبار السيناريوهات', kpi:'مؤشرات الأداء (KPIs)', audit:'سجل العمليات (Audit Log)', guide:'دليل التجربة', settings:'الإعدادات' };
+
+function go(screen){ if (!SCREENS[screen]) screen='chat'; UI.screen = screen; try{ history.replaceState(null,'','#'+screen);}catch(e){} render(); }
+function render(){
+  $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.screen===UI.screen));
+  $('#screen-title').textContent = SCREENS[UI.screen];
+  const pend = S.approvals.filter(a=>a.status==='pending').length, open = S.handoffs.filter(h=>h.status==='open').length;
+  const b1=$('#badge-approvals'), b2=$('#badge-inbox'); b1.textContent=pend; b1.classList.toggle('zero',!pend); b2.textContent=open; b2.classList.toggle('zero',!open);
+  $('#data-pill-txt').textContent = `${S.customers.length} عميل · ${S.invoices.length} فاتورة · ${S.payments.length} دفعة · ${S.quotations.length} عرض`;
+  const c = $('#content'); c.scrollTop = 0;
+  const fn = R[UI.screen] || R.chat; c.innerHTML = fn();
+  if (AFTER[UI.screen]) AFTER[UI.screen]();
+  updateAIPill();
+}
+const R = {}, AFTER = {};
+const waText = t => esc(t).replace(/\*([^*\n]+)\*/g,'<b>$1</b>');
+
+/* ================= CHAT ================= */
+R.chat = () => {
+  const phone = UI.chat.phone || S.customers[0].phone; UI.chat.phone = phone;
+  const actor = resolveActor(phone);
+  const custOpts = S.customers.slice().sort((a,b)=>a.company.localeCompare(b.company,'ar')).map(c=>`<option value="${c.phone}" ${c.phone===phone?'selected':''}>${esc(c.company)} — ${esc(c.name)}</option>`).join('');
+  const staffOpts = S.users.map(u=>`<option value="${u.phone}" ${u.phone===phone?'selected':''}>${esc(u.name)} — ${esc(u.title)}</option>`).join('');
+  const unknownPhone = '+966512345678';
+  return `
+  <div class="chat-layout">
+    <div>
+      <div class="sender-box card tight">
+        <div class="field"><label for="sender">أنت بتبعت من موبايل مين؟ (المرسل)</label>
+          <select id="sender">
+            <optgroup label="عملاء مسجلين (${S.customers.length})">${custOpts}</optgroup>
+            <optgroup label="موظفو الشركة">${staffOpts}</optgroup>
+            <optgroup label="غير مسجل"><option value="${unknownPhone}" ${phone===unknownPhone?'selected':''}>رقم غير معروف — ${unknownPhone}</option></optgroup>
+          </select></div>
+        <div class="row small"><span class="tag ${actor.role==='unknown'?'crit':'info'}">${ROLES[actor.role].label}</span><span class="mono t2">${esc(phone)}</span><span class="spacer" style="flex:1"></span><button class="btn sm" id="clear-conv">مسح المحادثة</button></div>
+      </div>
+      <div class="phone">
+        <div class="wa-head"><div class="av">ح</div><div><div class="nm">${esc(S.settings.botName)} · ${esc(S.settings.companyName)}</div><div class="st" id="wa-status">متصل الآن</div></div></div>
+        <div class="wa-msgs" id="wa-msgs">${renderMsgs(phone)}</div>
+        <div class="quick" id="quick">${quickChips(actor.role).map(q=>`<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+        <form class="wa-compose" id="compose"><input id="msg" placeholder="اكتب رسالة…" autocomplete="off"><button type="submit" title="إرسال">➤</button></form>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="trace-h"><h3 style="flex:1">مسار المعالجة (Pipeline Trace)</h3>
+          <div class="engine-switch" id="engine-switch">
+            <button data-m="auto" class="${S.settings.aiMode==='auto'?'on':''}">AI + احتياطي</button>
+            <button data-m="real" class="${S.settings.aiMode==='real'?'on':''}">AI فقط</button>
+            <button data-m="rules" class="${S.settings.aiMode==='rules'?'on':''}">قواعد فقط</button>
+          </div></div>
+        <div id="trace">${renderTrace(UI.chat.trace)}</div>
+      </div>
+      <div class="card" style="margin-top:14px"><h3 style="margin-bottom:8px">حالة المحادثة</h3><div id="ctx-box">${renderCtx(phone)}</div></div>
+    </div>
+  </div>`;
+};
+function quickChips(role){
+  return {
+    customer:['عليا كام؟','هات آخر فاتورة','الفاتورة 1490 اتدفعت؟','فواتيري المفتوحة','ابعت كشف الحساب','آخر دفعة دفعتها امتى؟','حولت 5000 ريال تحويل بنكي','عايز عرض سعر لـ20 متر قص خرسانة سمك 30 سم في الرياض','فين عرض السعر بتاعي؟','موعد استحقاق الفاتورة','مساعدة'],
+    sales:['بيانات شركة النخيل','رصيد شركة الأفق','ضيف عميل جديد','هاتلي كل عروض الأسعار المفتوحة','اعمل متابعة للعملاء اللي ما ردوش على عروض الأسعار','تقرير المبيعات هذا الأسبوع','اعمل عرض سعر لشركة الرواد 50 نقطة كور 150 مم في جدة','هات آخر فاتورة لشركة النخيل','سجل ليد جديد'],
+    accountant:['مين عليه فلوس أكتر من 30 يوم؟','رصيد شركة النخيل','كشف حساب شركة الأفق','الفاتورة 1495 اتدفعت؟','سجل دفعة 12000 ريال تحويل لشركة النخيل','اعمل فاتورة لشركة الرواد بـ50,000','فواتير شركة البناء الحديث المفتوحة','تقرير المبيعات'],
+    admin:['مين عليه فلوس أكتر من 60 يوم؟','هاتلي كل عروض الأسعار المفتوحة','تقرير المبيعات الشهر ده','اعمل متابعة للعملاء اللي ما ردوش','رصيد شركة النخيل','اعمل فاتورة لشركة الأفق بـ80,000','ضيف عميل جديد','كشف حساب الرواد'],
+    unknown:['السلام عليكم','محتاج قص خرسانة','عليا كام؟','عايز عرض سعر لـ100 م² مسح GPR في جدة','مساعدة'],
+  }[role] || [];
+}
+function renderMsgs(phone){
+  const ms = conv(phone).messages;
+  if (!ms.length) return `<div class="bubble sys">ابدأ المحادثة — اكتب رسالة أو اختار من الاقتراحات تحت 👇<br>كل اللي هيحصل هيظهر في مسار المعالجة على الشمال.</div>`;
+  return ms.map(m => {
+    const cls = m.dir==='out' ? 'out' : ('in' + (m.meta.notification?' notif-b':'') + (m.meta.human?' human':''));
+    const who = m.meta.notification ? `<div class="who">🔔 إشعار تلقائي من النظام</div>` : m.meta.human ? `<div class="who">👤 رد موظف (${esc(m.meta.by||'')})</div>` : '';
+    const att = m.meta.attach ? `<div class="attach"><span class="ico">📎</span><div><div><b>${esc(m.meta.attach.name)}</b></div><div class="small muted">${esc(m.meta.attach.kind)} · محاكاة</div></div></div>` : '';
+    const btns = m.meta.buttons ? `<div class="btns">${m.meta.buttons.map(b=>`<button data-q="${esc(b)}">${esc(b)}</button>`).join('')}</div>` : '';
+    return `<div class="bubble ${cls}">${who}${waText(m.text)}${att}${btns}<div class="meta">${fmtTime(m.ts)}${m.dir==='out'?' <span class="tick">✓✓</span>':''}</div></div>`;
+  }).join('') + (UI.chat.typing ? `<div class="typing">${esc(S.settings.botName)} بيكتب…</div>` : '');
+}
+function renderTrace(tr){
+  if (!tr) return `<div class="empty">ابعت رسالة وهتشوف هنا كل خطوة بتحصل: الاستقبال → تحديد المرسل → فهم النية → الصلاحيات → التنفيذ → الرد.</div>`;
+  const steps = tr.steps.map(s => `<div class="step ${s.status}"><div class="no">${s.n}</div><div class="ttl">${esc(s.title)}</div><div class="dur">${s.ms} ms</div><div class="det">${waText(s.detail||'')}${s.extra?`<details><summary>تفاصيل</summary><pre class="json">${esc(JSON.stringify(s.extra,null,2))}</pre></details>`:''}</div></div>`).join('');
+  const notes = tr.notifications && tr.notifications.length ? `<div style="margin-top:10px"><div class="small t2" style="margin-bottom:6px">📤 رسائل صادرة لأطراف أخرى (هتلاقيها في محادثتهم لو بدّلت المرسل):</div><div class="steps-list">${tr.notifications.map(n=>`<div class="notif"><b>${esc(n.label)} · ${esc(n.toName)} · ${esc(n.to)}</b><span>${waText(n.text.slice(0,180))}${n.text.length>180?'…':''}</span></div>`).join('')}</div></div>` : '';
+  return `<div class="trace">${steps}</div>${notes}${tr.totalMs!==undefined?`<div class="small muted" style="margin-top:8px">الزمن الكلي: ${tr.totalMs} ms · النية النهائية: <span class="mono">${esc(tr.intent)}</span></div>`:''}`;
+}
+function renderCtx(phone){
+  const c = conv(phone); const a = resolveActor(phone);
+  const perms = (PERMS[a.role]||[]).filter(x=>!COMMON.includes(x));
+  let t = `<div class="kv"><dt>المرسل</dt><dd>${esc(a.name)} <span class="tag">${ROLES[a.role].label}</span></dd><dt>الصلاحيات</dt><dd class="small">${perms.map(p=>`<span class="tag" style="margin:1px">${INTENTS[p].ar}</span>`).join(' ')||'—'}</dd><dt>Flow نشط</dt><dd>${c.context ? `<span class="tag warn">${esc(FLOWS[c.context.flow].title)}</span> <span class="small t2">${c.context.confirming?'بانتظار التأكيد':'ناقص: '+c.context.missing.map(slotLabel).join('، ')}</span>` : '<span class="muted">لا يوجد</span>'}</dd><dt>رسائل المحادثة</dt><dd>${c.messages.length}</dd></div>`;
+  if (c.context && Object.keys(c.context.slots).length) t += `<pre class="json" style="margin-top:8px">${esc(JSON.stringify(c.context.slots,null,1))}</pre>`;
+  return t;
+}
+AFTER.chat = () => {
+  const box = $('#wa-msgs'); box.scrollTop = box.scrollHeight;
+  $('#sender').onchange = e => { UI.chat.phone = e.target.value; UI.chat.trace = null; render(); };
+  $('#clear-conv').onclick = () => { S.conversations[UI.chat.phone] = { messages:[], context:null }; UI.chat.trace=null; save(); render(); };
+  $$('#engine-switch button').forEach(b => b.onclick = () => { S.settings.aiMode = b.dataset.m; save(); render(); });
+  $('#compose').onsubmit = e => { e.preventDefault(); const v = $('#msg').value.trim(); if (!v) return; $('#msg').value=''; sendFromUI(v); };
+  $('#content').addEventListener('click', e => { const b = e.target.closest('button[data-q]'); if (b){ sendFromUI(b.dataset.q); } });
+  $('#msg').focus();
+};
+async function sendFromUI(text){
+  if (UI.chat.busy) { toast('استنى الرد الحالي الأول'); return; }
+  UI.chat.busy = true; const phone = UI.chat.phone;
+  try {
+    const r = await handleIncoming(phone, text, {
+      onStep: tr => { UI.chat.trace = tr; const t=$('#trace'); if (t) t.innerHTML = renderTrace(tr); const m=$('#wa-msgs'); if (m){ m.innerHTML = renderMsgs(phone); m.scrollTop = m.scrollHeight; } },
+      onTyping: on => { UI.chat.typing = on; const m=$('#wa-msgs'); if (m){ m.innerHTML = renderMsgs(phone); m.scrollTop = m.scrollHeight; } const st=$('#wa-status'); if (st) st.textContent = on ? 'يكتب…' : 'متصل الآن'; }
+    });
+    UI.chat.trace = r.trace;
+  } catch(err){ console.error(err); pushMsg(phone,'in','حصل خطأ داخلي في المعالجة ⚠️ (شوف الـconsole)',{}); toast('خطأ: '+(err && err.message ? err.message : err)); }
+  UI.chat.busy = false; UI.chat.typing = false;
+  if (UI.screen==='chat'){ const m=$('#wa-msgs'); if (m){ m.innerHTML = renderMsgs(phone); m.scrollTop = m.scrollHeight; } const t=$('#trace'); if (t) t.innerHTML = renderTrace(UI.chat.trace); const cb=$('#ctx-box'); if (cb) cb.innerHTML = renderCtx(phone); const st=$('#wa-status'); if (st) st.textContent='متصل الآن';
+    const pend = S.approvals.filter(a=>a.status==='pending').length, open = S.handoffs.filter(h=>h.status==='open').length; const b1=$('#badge-approvals'), b2=$('#badge-inbox'); b1.textContent=pend; b1.classList.toggle('zero',!pend); b2.textContent=open; b2.classList.toggle('zero',!open); updateAIPill(); const inp=$('#msg'); if (inp) inp.focus(); }
+}
+
+/* ================= APPROVALS ================= */
+const AP_TYPE = { CREATE_INVOICE:'إصدار فاتورة', RECORD_PAYMENT:'ترحيل دفعة', CREATE_CUSTOMER:'إضافة عميل', SEND_QUOTATION:'اعتماد وإرسال عرض سعر' };
+R.approvals = () => {
+  const f = UI.filters.ap || 'pending';
+  const list = S.approvals.filter(a => f==='all' || a.status===f);
+  const approvers = S.users.filter(u=>u.role==='accountant'||u.role==='admin');
+  const acting = byId(S.users, UI.approvalsActor) || approvers[0];
+  return `
+  <div class="card tight"><div class="row">
+    <span class="t2">أنت دلوقتي بتراجع بصفتك:</span>
+    <select id="ap-actor">${approvers.map(u=>`<option value="${u.id}" ${u.id===acting.id?'selected':''}>${esc(u.name)} — ${ROLES[u.role].label}</option>`).join('')}</select>
+    <span style="flex:1"></span>
+    <div class="engine-switch">${['pending','approved','rejected','all'].map(x=>`<button data-f="${x}" class="${f===x?'on':''}">${{pending:'معلقة',approved:'معتمدة',rejected:'مرفوضة',all:'الكل'}[x]}</button>`).join('')}</div>
+  </div></div>
+  <div class="callout">العمليات الحساسة (فاتورة / دفعة / عرض سعر / عميل جديد) الـAI بيجهزها كمسودة بس — مفيش حاجة بتتنفذ في النظام المحاسبي غير بعد ضغطة "اعتماد" من إنسان. كل قرار بيتسجل في سجل العمليات وبيتبعت إشعار واتساب لصاحب الطلب.</div>
+  ${list.length ? list.map(a => approvalCard(a, acting)).join('') : `<div class="card empty">مفيش طلبات ${ {pending:'معلقة',approved:'معتمدة',rejected:'مرفوضة',all:''}[f] } حالياً. جرّب من المحاكي: "حولت 5000 ريال" كعميل، أو "اعمل فاتورة لشركة النخيل بـ30,000" كمحاسب.</div>`}`;
+};
+function approvalCard(a, acting){
+  const p = a.payload;
+  const body = a.type==='RECORD_PAYMENT' ? `<div class="kv"><dt>العميل</dt><dd>${esc(p.customer)}</dd><dt>المبلغ</dt><dd><b>${fmtMoney(p.amount)}</b></dd><dt>الطريقة</dt><dd>${esc(p.method)}</dd><dt>الفاتورة</dt><dd>${esc(p.invoiceId||'أقدم فاتورة مفتوحة')}</dd><dt>مرجع</dt><dd>${esc(p.reference||'—')}</dd></div>`
+    : a.type==='CREATE_INVOICE' ? `<div class="kv"><dt>العميل</dt><dd>${esc(p.customer)}</dd><dt>القيمة</dt><dd><b>${fmtMoney(p.amount)}</b></dd><dt>الوصف</dt><dd>${esc(p.description)}</dd></div>`
+    : a.type==='CREATE_CUSTOMER' ? `<div class="kv"><dt>الشركة</dt><dd>${esc(p.company)}</dd><dt>المسؤول</dt><dd>${esc(p.name)}</dd><dt>الجوال</dt><dd class="mono">${esc(p.phone)}</dd></div>`
+    : `<div class="kv"><dt>عرض السعر</dt><dd class="mono">${esc(p.quotationId)}</dd><dt>العميل</dt><dd>${esc(p.customer)}</dd><dt>البنود</dt><dd>${esc(p.summary)}</dd><dt>الإجمالي (تسعير تلقائي)</dt><dd><b>${fmtMoney(p.total)}</b></dd></div>`;
+  const canDecide = a.status==='pending' && (acting.role==='admin' || acting.role===a.approverRole);
+  return `<div class="appr">
+    <div class="hd"><span class="ty">${AP_TYPE[a.type]||a.type}</span><span class="mono muted">${a.id}</span>${tagOf(a.status)}<span class="small t2">طلب من ${esc(a.requestedBy)} (${ROLES[a.requesterRole].label}) · ${fmtDateAr(a.requestedAt)} ${fmtTime(a.requestedAt)}</span><span class="small muted">المعتمد: ${ROLES[a.approverRole].label}</span></div>
+    <div class="body">${body}</div>
+    ${a.status==='pending' ? (canDecide ? `<div class="row"><input id="note-${a.id}" placeholder="ملاحظة (اختياري)" style="flex:1;min-width:160px"><button class="btn good" data-ap="${a.id}" data-d="1">✅ اعتماد</button><button class="btn danger" data-ap="${a.id}" data-d="0">❌ رفض</button></div>` : `<div class="small muted">الطلب ده يعتمده ${ROLES[a.approverRole].label} — بدّل "بصفتك" فوق.</div>`) : `<div class="small t2">القرار: ${STATUS_AR[a.status]} بواسطة ${esc(a.decidedBy)} · ${fmtDateAr(a.decidedAt)} ${fmtTime(a.decidedAt)}${a.note?' · '+esc(a.note):''}</div>`}
+  </div>`;
+}
+AFTER.approvals = () => {
+  $('#ap-actor').onchange = e => { UI.approvalsActor = e.target.value; render(); };
+  $$('button[data-f]').forEach(b => b.onclick = () => { UI.filters.ap = b.dataset.f; render(); });
+  $$('button[data-ap]').forEach(b => b.onclick = () => { const acting = byId(S.users, UI.approvalsActor); const note = ($('#note-'+b.dataset.ap)||{}).value||''; const r = decideApproval(b.dataset.ap, b.dataset.d==='1', acting.name, note); toast(b.dataset.d==='1' ? `تم الاعتماد${r&&r.result?' — '+r.result:''} · اتبعت ${r?r.notify.length:0} إشعار` : 'تم الرفض'); render(); });
+};
+
+/* ================= HUMAN INBOX ================= */
+R.inbox = () => {
+  const list = S.handoffs;
+  return `<div class="callout">أي رسالة الـAI مش فاهمها أو خارج صلاحيات المرسل بتتحول هنا. ردك بيروح للعميل على واتساب (هتلاقيه في محادثته في المحاكي).</div>
+  ${list.length ? list.map(h => `<div class="appr"><div class="hd"><span class="ty">${h.id}</span>${tagOf(h.status)}<span class="small t2">${esc(h.actor)} (${ROLES[h.role].label}) · <span class="mono">${esc(h.phone)}</span> · ${fmtDateAr(h.createdAt)} ${fmtTime(h.createdAt)}</span><span class="small muted">السبب: ${esc(h.reason)}</span></div>
+    <div class="body">"${esc(h.message)}"</div>
+    ${h.status==='open' ? `<div class="row"><input id="ho-${h.id}" placeholder="اكتب الرد اللي هيتبعت للعميل…" style="flex:1;min-width:200px"><button class="btn primary" data-ho="${h.id}">إرسال الرد</button></div>` : `<div class="small t2">الرد: ${esc(h.reply)} · بواسطة ${esc(h.resolvedBy||'')}</div>`}</div>`).join('') : `<div class="card empty">مفيش تحويلات مفتوحة. جرّب تبعت رسالة غريبة في المحاكي زي "الجو حر النهارده" وهتلاقيها هنا.</div>`}`;
+};
+AFTER.inbox = () => { $$('button[data-ho]').forEach(b => b.onclick = () => { const h = byId(S.handoffs, b.dataset.ho); const v = $('#ho-'+h.id).value.trim(); if (!v) return; h.status='resolved'; h.reply=v; h.resolvedBy='AK'; h.resolvedAt=new Date().toISOString(); pushMsg(h.phone,'in',v,{human:true, by:'AK'}); audit('AK','HUMAN_REPLY','handoff',h.id,v.slice(0,80)); save(); toast('اتبعت للعميل'); render(); }); };
+
+/* ================= CHARTS (inline SVG) ================= */
+function barChart({labels, series, height=220, money=true, horizontal=false}){
+  const W = 640, H = height, padL = horizontal ? 150 : 56, padR = 16, padT = 14, padB = horizontal ? 28 : 44;
+  const maxV = Math.max(1, ...series.flatMap(s=>s.values));
+  const nice = niceMax(maxV); const ticks = 4;
+  let g = '';
+  if (!horizontal){
+    const iw = W-padL-padR, ih = H-padT-padB; const n = labels.length; const groupW = iw/n; const bw = Math.min(28, (groupW*0.7)/series.length);
+    for (let t=0;t<=ticks;t++){ const v = nice*t/ticks; const y = padT + ih - ih*v/nice; g += `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="var(--grid)" stroke-width="1"/><text x="${padL-6}" y="${y+4}" font-size="11" fill="var(--muted)" text-anchor="end">${money?fmtShort(v):fmtN(v)}</text>`; }
+    labels.forEach((lb,i)=>{ const gx = padL + groupW*i + (groupW - bw*series.length - 2*(series.length-1))/2;
+      series.forEach((s,j)=>{ const v = s.values[i]; const h = ih*v/nice; const x = gx + j*(bw+2); const y = padT+ih-h; g += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h,0)}" rx="3" fill="${s.color}"><title>${esc(lb)} — ${esc(s.name)}: ${money?fmtMoney(v):fmtN(v)}</title></rect>`; });
+      g += `<text x="${padL + groupW*i + groupW/2}" y="${H-padB+16}" font-size="11" fill="var(--text-2)" text-anchor="middle">${esc(lb)}</text>`; });
+    g += `<line x1="${padL}" x2="${W-padR}" y1="${padT+ih}" y2="${padT+ih}" stroke="var(--axis)"/>`;
+  } else {
+    const iw = W-padL-padR, ih = H-padT-padB; const n = labels.length; const rowH = ih/n; const bh = Math.min(18, rowH*0.6);
+    for (let t=0;t<=ticks;t++){ const v = nice*t/ticks; const x = padL + iw*v/nice; g += `<line y1="${padT}" y2="${padT+ih}" x1="${x}" x2="${x}" stroke="var(--grid)"/><text x="${x}" y="${H-padB+16}" font-size="11" fill="var(--muted)" text-anchor="middle">${money?fmtShort(v):fmtN(v)}</text>`; }
+    labels.forEach((lb,i)=>{ const v = series[0].values[i]; const w = iw*v/nice; const y = padT + rowH*i + (rowH-bh)/2; g += `<rect x="${padL}" y="${y}" width="${Math.max(w,0)}" height="${bh}" rx="3" fill="${series[0].color}"><title>${esc(lb)}: ${money?fmtMoney(v):fmtN(v)}</title></rect><text x="${padL-8}" y="${y+bh/2+4}" font-size="11.5" fill="var(--text-2)" text-anchor="end">${esc(lb)}</text><text x="${padL+Math.max(w,0)+6}" y="${y+bh/2+4}" font-size="11" fill="var(--text)" text-anchor="start">${money?fmtShort(v):fmtN(v)}</text>`; });
+  }
+  const legend = series.length>1 ? `<div class="legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>` : '';
+  return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;display:block;direction:ltr" role="img">${g}</svg></div>${legend}`;
+}
+function niceMax(v){ const p = Math.pow(10, Math.floor(Math.log10(v))); const f = v/p; const n = f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10; return n*p; }
+function fmtShort(v){ return v>=1e6 ? (v/1e6).toFixed(1).replace(/\.0$/,'')+'M' : v>=1e3 ? (v/1e3).toFixed(v>=1e5?0:1).replace(/\.0$/,'')+'K' : fmtN(v); }
+
+/* ================= DASHBOARD ================= */
+R.dashboard = () => {
+  const inv = S.invoices.filter(i=>i.status!=='draft');
+  const receivables = sum(inv, i=>i.remaining), overdue = sum(inv.filter(i=>invoiceStatus(i)==='overdue'), i=>i.remaining);
+  const d30 = fmtDate(addDays(TODAY,-30)); const collected30 = sum(S.payments.filter(p=>p.date>=d30), p=>p.amount), invoiced30 = sum(inv.filter(i=>i.date>=d30), i=>i.amount);
+  const openQ = S.quotations.filter(q=>q.status==='sent'||q.status==='pending_approval');
+  const won = S.quotations.filter(q=>q.status==='accepted').length, lost = S.quotations.filter(q=>q.status==='rejected').length;
+  const reqs = S.requests; const ok = reqs.filter(r=>r.success).length; const ho = reqs.filter(r=>r.handoff).length; const avgLat = reqs.length ? Math.round(sum(reqs,r=>r.latency)/reqs.length) : 0;
+  const convs = Object.values(S.conversations).filter(c=>c.messages.length).length;
+  // monthly series (6 months)
+  const months = []; for (let k=5;k>=0;k--){ const d = new Date(TODAY.getFullYear(), TODAY.getMonth()-k, 1); months.push({ key:d.toISOString().slice(0,7), label:d.toLocaleDateString('ar-EG-u-nu-latn',{month:'short'}) }); }
+  const invoiced = months.map(m => sum(inv.filter(i=>i.date.startsWith(m.key)), i=>i.amount));
+  const collected = months.map(m => sum(S.payments.filter(p=>p.date.startsWith(m.key)), p=>p.amount));
+  // aging
+  const buckets = [['حالية',0,0],['1–30 يوم',1,30],['31–60',31,60],['61–90',61,90],['+90',91,9999]];
+  const aging = buckets.map(([l,a,b]) => sum(inv.filter(i=>{ if (i.remaining<=0) return false; const d = daysBetween(i.dueDate,TODAY); return a===0 ? d<=0 : d>=a && d<=b; }), i=>i.remaining));
+  // intents
+  const im = {}; reqs.forEach(r => im[r.intent] = (im[r.intent]||0)+1); const intents = Object.entries(im).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const statusCounts = ['paid','partial','unpaid','overdue'].map(s => inv.filter(i=>invoiceStatus(i)===s).length);
+  return `
+  <h2>المحاسبة</h2>
+  <div class="grid c4">
+    <div class="stat"><div class="lbl">إجمالي المستحقات (Receivables)</div><div class="val num">${fmtShort(receivables)}</div><div class="sub">${fmtMoney(receivables)}</div></div>
+    <div class="stat"><div class="lbl">متأخر عن الاستحقاق</div><div class="val num" style="color:var(--crit)">${fmtShort(overdue)}</div><div class="sub">${Math.round(overdue/Math.max(receivables,1)*100)}% من المستحقات</div></div>
+    <div class="stat"><div class="lbl">تحصيلات آخر 30 يوم</div><div class="val num" style="color:var(--good-ink)">${fmtShort(collected30)}</div><div class="sub">${S.payments.filter(p=>p.date>=d30).length} دفعة</div></div>
+    <div class="stat"><div class="lbl">فواتير آخر 30 يوم</div><div class="val num">${fmtShort(invoiced30)}</div><div class="sub">${inv.filter(i=>i.date>=d30).length} فاتورة</div></div>
+  </div>
+  <div class="grid c2">
+    <div class="card"><div class="card-h"><h3>الفوترة مقابل التحصيل — آخر 6 شهور</h3></div>${barChart({labels:months.map(m=>m.label), series:[{name:'فواتير صادرة',values:invoiced,color:'var(--s1)'},{name:'تحصيلات',values:collected,color:'var(--s3)'}]})}</div>
+    <div class="card"><div class="card-h"><h3>أعمار المديونية (Aging)</h3></div>${barChart({labels:buckets.map(b=>b[0]), series:[{name:'متبقي',values:aging,color:'var(--s1)'}], horizontal:true, height:200})}</div>
+  </div>
+  <h2>المبيعات</h2>
+  <div class="grid c4">
+    <div class="stat"><div class="lbl">فرص جديدة (Leads)</div><div class="val num">${S.leads.filter(l=>l.status==='new').length}</div><div class="sub">من ${S.leads.length} فرصة</div></div>
+    <div class="stat"><div class="lbl">عروض مفتوحة</div><div class="val num">${openQ.length}</div><div class="sub">${fmtMoney(sum(openQ,q=>q.total))}</div></div>
+    <div class="stat"><div class="lbl">مقبول / مرفوض</div><div class="val num"><span style="color:var(--good-ink)">${won}</span> / <span style="color:var(--crit)">${lost}</span></div><div class="sub">نسبة الفوز ${Math.round(won/Math.max(won+lost,1)*100)}%</div></div>
+    <div class="stat"><div class="lbl">أوامر شغل</div><div class="val num">${S.orders.length}</div><div class="sub">${S.orders.filter(o=>o.status!=='done').length} قيد التنفيذ</div></div>
+  </div>
+  <h2>الأتمتة (Automation)</h2>
+  <div class="grid c4">
+    <div class="stat"><div class="lbl">محادثات</div><div class="val num">${convs}</div><div class="sub">${reqs.length} طلب</div></div>
+    <div class="stat"><div class="lbl">طلبات ناجحة</div><div class="val num" style="color:var(--good-ink)">${reqs.length?Math.round(ok/reqs.length*100):0}%</div><div class="sub">${ok} من ${reqs.length}</div></div>
+    <div class="stat"><div class="lbl">تحويل بشري</div><div class="val num">${ho}</div><div class="sub">${reqs.length?Math.round(ho/reqs.length*100):0}% من الطلبات</div></div>
+    <div class="stat"><div class="lbl">متوسط زمن الرد</div><div class="val num">${avgLat} <span class="small" style="font-size:12px">ms</span></div><div class="sub">شامل زمن الـAI</div></div>
+  </div>
+  <div class="grid c2">
+    <div class="card"><div class="card-h"><h3>حالة الفواتير (عدد)</h3></div>${barChart({labels:['مدفوعة','جزئية','غير مدفوعة','متأخرة'], series:[{name:'عدد',values:statusCounts,color:'var(--s1)'}], horizontal:true, money:false, height:170})}</div>
+    <div class="card"><div class="card-h"><h3>أكثر الطلبات على واتساب</h3></div>${intents.length ? barChart({labels:intents.map(x=>INTENTS[x[0]]?INTENTS[x[0]].ar:x[0]), series:[{name:'عدد',values:intents.map(x=>x[1]),color:'var(--s2)'}], horizontal:true, money:false, height:Math.max(120, 30*intents.length+50)}) : '<div class="empty">لسه مفيش طلبات — ابدأ من المحاكي</div>'}</div>
+  </div>`;
+};
+
+/* ================= DATA TABLES ================= */
+function tableHtml(cols, rows, rowAttr){
+  if (!rows.length) return `<div class="table-wrap"><div class="empty">لا توجد سجلات</div></div>`;
+  return `<div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th class="${c.num?'num':''}">${esc(c.h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr ${rowAttr?rowAttr(r):''}>${cols.map(c=>`<td class="${c.num?'num':''}">${c.f(r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function searchBox(id, ph){ return `<input type="search" id="${id}" placeholder="${ph}" value="${esc(UI.filters[id]||'')}">`; }
+function hook(id, key){ const el = $('#'+id); if (el) el.oninput = e => { UI.filters[id] = e.target.value; render(); const n = $('#'+id); if (n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length);} }; }
+const q_ = id => norm(UI.filters[id]||'');
+
+R.customers = () => {
+  const q = q_('q-cust'); let rows = S.customers.filter(c => !q || norm(c.company+' '+c.name+' '+c.phone+' '+c.id+' '+c.city).includes(q));
+  return `<div class="toolbar">${searchBox('q-cust','ابحث بالاسم / الشركة / الجوال')}<span class="muted small">${rows.length} عميل — اضغط على أي صف للتفاصيل</span></div>
+  ${tableHtml([{h:'ID',f:r=>`<span class="mono">${r.id}</span>`},{h:'الشركة',f:r=>esc(r.company)},{h:'المسؤول',f:r=>esc(r.name)},{h:'الجوال',f:r=>`<span class="mono">${r.phone}</span>`},{h:'المدينة',f:r=>esc(r.city)},{h:'حد الائتمان',num:true,f:r=>fmtN(r.creditLimit)},{h:'المستحق',num:true,f:r=>{const b=customerBalance(r.id);return `<b>${fmtN(b.remaining)}</b>`;}},{h:'متأخر',num:true,f:r=>{const b=customerBalance(r.id);return b.overdue?`<span style="color:var(--crit)">${fmtN(b.overdue)}</span>`:'—';}},{h:'الحالة',f:r=>tagOf(r.status)}], rows.slice(0,150), r=>`data-cust="${r.id}" style="cursor:pointer"`)}`;
+};
+AFTER.customers = () => { hook('q-cust'); $$('tr[data-cust]').forEach(tr => tr.onclick = () => openDrawer(customerDrawer(tr.dataset.cust))); };
+function customerDrawer(id){
+  const c = byId(S.customers,id); const b = customerBalance(id); const inv = customerInvoices(id).sort((x,y)=>x.date<y.date?1:-1); const pays = S.payments.filter(p=>p.customerId===id).sort((x,y)=>x.date<y.date?1:-1); const qs = S.quotations.filter(q=>q.customerId===id);
+  return `<h2>${esc(c.company)}</h2><div class="kv"><dt>ID</dt><dd class="mono">${c.id}</dd><dt>المسؤول</dt><dd>${esc(c.name)}</dd><dt>الجوال</dt><dd class="mono">${c.phone}</dd><dt>المدينة</dt><dd>${esc(c.city)}</dd><dt>الرقم الضريبي</dt><dd class="mono">${c.vat||'—'}</dd><dt>حد الائتمان</dt><dd>${fmtMoney(c.creditLimit)}</dd><dt>الحالة</dt><dd>${tagOf(c.status)}</dd><dt>المندوب</dt><dd>${esc((byId(S.users,c.salesRep)||{}).name||'—')}</dd></div>
+  <div class="grid c3"><div class="stat"><div class="lbl">إجمالي الفواتير</div><div class="val num">${fmtShort(b.total)}</div></div><div class="stat"><div class="lbl">المدفوع</div><div class="val num" style="color:var(--good-ink)">${fmtShort(b.paid)}</div></div><div class="stat"><div class="lbl">المتبقي</div><div class="val num" style="color:${b.overdue?'var(--crit)':'inherit'}">${fmtShort(b.remaining)}</div></div></div>
+  <div class="row"><button class="btn primary" data-chat-as="${c.phone}">💬 افتح المحاكي كـ ${esc(firstName(c.name))}</button></div>
+  <h3>الفواتير (${inv.length})</h3>${tableHtml([{h:'رقم',f:r=>`<span class="mono">${r.id}</span>`},{h:'التاريخ',f:r=>r.date},{h:'القيمة',num:true,f:r=>fmtN(r.amount)},{h:'المتبقي',num:true,f:r=>fmtN(r.remaining)},{h:'الحالة',f:r=>tagOf(invoiceStatus(r))}], inv.slice(0,12))}
+  <h3>المدفوعات (${pays.length})</h3>${tableHtml([{h:'رقم',f:r=>`<span class="mono">${r.id}</span>`},{h:'التاريخ',f:r=>r.date},{h:'المبلغ',num:true,f:r=>fmtN(r.amount)},{h:'الطريقة',f:r=>esc(r.method)},{h:'الفاتورة',f:r=>`<span class="mono">${r.invoiceId||'—'}</span>`}], pays.slice(0,10))}
+  <h3>عروض الأسعار (${qs.length})</h3>${tableHtml([{h:'رقم',f:r=>`<span class="mono">${r.id}</span>`},{h:'التاريخ',f:r=>r.date},{h:'الإجمالي',num:true,f:r=>fmtN(r.total)},{h:'الحالة',f:r=>tagOf(r.status)}], qs.slice(0,10))}`;
+}
+R.invoices = () => {
+  const q = q_('q-inv'); const st = UI.filters.invSt||'all';
+  let rows = S.invoices.filter(i => (st==='all' || invoiceStatus(i)===st) && (!q || norm(i.id+' '+customerName(i.customerId)+' '+i.project).includes(q)));
+  const tot = sum(rows,i=>i.amount), rem = sum(rows,i=>i.remaining);
+  return `<div class="toolbar">${searchBox('q-inv','ابحث برقم الفاتورة / العميل / المشروع')}<select id="inv-st">${['all','unpaid','partial','overdue','paid'].map(s=>`<option value="${s}" ${st===s?'selected':''}>${s==='all'?'كل الحالات':STATUS_AR[s]}</option>`).join('')}</select><span class="muted small">${rows.length} فاتورة · الإجمالي ${fmtMoney(tot)} · المتبقي ${fmtMoney(rem)}</span></div>
+  ${tableHtml([{h:'رقم',f:r=>`<span class="mono">${r.id}</span>`},{h:'التاريخ',f:r=>r.date},{h:'العميل',f:r=>esc(customerName(r.customerId))},{h:'المشروع',f:r=>esc(r.project)},{h:'قبل الضريبة',num:true,f:r=>fmtN(r.subtotal)},{h:'الضريبة',num:true,f:r=>fmtN(r.vat)},{h:'الإجمالي',num:true,f:r=>`<b>${fmtN(r.amount)}</b>`},{h:'المدفوع',num:true,f:r=>fmtN(r.paid)},{h:'المتبقي',num:true,f:r=>fmtN(r.remaining)},{h:'الاستحقاق',f:r=>r.dueDate},{h:'الحالة',f:r=>tagOf(invoiceStatus(r))}], rows.slice(0,200), r=>`data-inv="${r.id}" style="cursor:pointer"`)}`;
+};
+AFTER.invoices = () => { hook('q-inv'); $('#inv-st').onchange = e => { UI.filters.invSt = e.target.value; render(); }; $$('tr[data-inv]').forEach(tr => tr.onclick = () => { const i = byId(S.invoices, tr.dataset.inv); const pays = S.payments.filter(p=>p.invoiceId===i.id); openDrawer(`<h2>${i.id}</h2><div class="kv"><dt>العميل</dt><dd>${esc(customerName(i.customerId))}</dd><dt>التاريخ</dt><dd>${i.date}</dd><dt>الاستحقاق</dt><dd>${i.dueDate}</dd><dt>المشروع</dt><dd>${esc(i.project)}</dd><dt>الحالة</dt><dd>${tagOf(invoiceStatus(i))}</dd><dt>أنشأها</dt><dd>${esc(i.createdBy)}</dd></div><h3>البنود</h3>${tableHtml([{h:'البند',f:r=>esc(r.name)},{h:'الكمية',num:true,f:r=>fmtN(r.qty)+' '+r.unit},{h:'السعر',num:true,f:r=>fmtN(r.price)},{h:'الإجمالي',num:true,f:r=>fmtN(r.total)}], i.items)}<div class="kv"><dt>قبل الضريبة</dt><dd>${fmtMoney(i.subtotal)}</dd><dt>ضريبة 15%</dt><dd>${fmtMoney(i.vat)}</dd><dt>الإجمالي</dt><dd><b>${fmtMoney(i.amount)}</b></dd><dt>المدفوع</dt><dd>${fmtMoney(i.paid)}</dd><dt>المتبقي</dt><dd><b>${fmtMoney(i.remaining)}</b></dd></div><h3>المدفوعات (${pays.length})</h3>${tableHtml([{h:'رقم',f:r=>`<span class="mono">${r.id}</span>`},{h:'التاريخ',f:r=>r.date},{h:'المبلغ',num:true,f:r=>fmtN(r.amount)},{h:'الطريقة',f:r=>esc(r.method)},{h:'مرجع',f:r=>`<span class="mono">${esc(r.reference)}</span>`}], pays)}`); }); };
+R.payments = () => {
+  const q = q_('q-pay'); let rows = S.payments.filter(p => !q || norm(p.id+' '+customerName(p.customerId)+' '+(p.invoiceId||'')+' '+p.reference+' '+p.method).includes(q)).slice().sort((a,b)=>a.date<b.date?1:-1);
+  return `<div class="toolbar">${searchBox('q-pay','ابحث بالعميل / الفاتورة / المرجع')}<span class="muted small">${rows.length} دفعة · ${fmtMoney(sum(rows,p=>p.amount))}</span></div>
+  ${tableHtml([{h:'رقم',f:r=>`<span class="mono">${r.id}</span>`},{h:'التاريخ',f:r=>r.date},{h:'العميل',f:r=>esc(customerName(r.customerId))},{h:'الفاتورة',f:r=>`<span class="mono">${r.invoiceId||'—'}</span>`},{h:'المبلغ',num:true,f:r=>`<b>${fmtN(r.amount)}</b>`},{h:'الطريقة',f:r=>esc(r.method)},{h:'المرجع',f:r=>`<span class="mono">${esc(r.reference)}</span>`},{h:'سجّلها',f:r=>esc(r.recordedBy)}], rows.slice(0,200))}`;
+};
+AFTER.payments = () => hook('q-pay');
+R.quotations = () => {
+  const q = q_('q-qt'); const st = UI.filters.qtSt||'all';
+  let rows = S.quotations.filter(x => (st==='all'||x.status===st) && (!q || norm(x.id+' '+(x.customerId?customerName(x.customerId):'')+' '+x.items.map(i=>i.name).join(' ')).includes(q))).slice().sort((a,b)=>a.date<b.date?1:-1);
+  return `<div class="toolbar">${searchBox('q-qt','ابحث برقم العرض / العميل / الخدمة')}<select id="qt-st">${['all','pending_approval','sent','accepted','rejected','expired','draft'].map(s=>`<option value="${s}" ${st===s?'selected':''}>${s==='all'?'كل الحالات':STATUS_AR[s]}</option>`).join('')}</select><span class="muted small">${rows.length} عرض · ${fmtMoney(sum(rows,x=>x.total))}</span></div>
+  ${tableHtml([{h:'رقم',f:r=>`<span class="mono">${r.id}</span>`},{h:'التاريخ',f:r=>r.date},{h:'العميل',f:r=>esc(r.customerId?customerName(r.customerId):('عميل جديد '+(r.leadId||'')))},{h:'البنود',f:r=>esc(r.items.map(i=>`${i.name} × ${fmtN(i.qty)} ${i.unit}`).join('، '))},{h:'الموقع',f:r=>esc(r.location||'—')},{h:'الإجمالي',num:true,f:r=>`<b>${fmtN(r.total)}</b>`},{h:'القناة',f:r=>r.requestedVia==='whatsapp'?'<span class="tag info">واتساب</span>':'<span class="tag">إيميل</span>'},{h:'متابعات',num:true,f:r=>r.followUps||0},{h:'صالح حتى',f:r=>r.validUntil},{h:'الحالة',f:r=>tagOf(r.status)}], rows.slice(0,200))}`;
+};
+AFTER.quotations = () => { hook('q-qt'); $('#qt-st').onchange = e => { UI.filters.qtSt = e.target.value; render(); }; };
+R.leads = () => {
+  const leads = S.leads.slice().sort((a,b)=>a.date<b.date?1:-1);
+  return `<h2>الفرص (Leads) — ${leads.length}</h2>${tableHtml([{h:'رقم',f:r=>`<span class="mono">${r.id}</span>`},{h:'التاريخ',f:r=>r.date},{h:'الاسم',f:r=>esc(r.name)},{h:'الشركة',f:r=>esc(r.company||'—')},{h:'الجوال',f:r=>`<span class="mono">${r.phone}</span>`},{h:'الخدمة',f:r=>esc(r.serviceName)},{h:'الكمية',f:r=>r.qty?fmtN(r.qty)+' '+r.unit:'—'},{h:'الموقع',f:r=>esc(r.location||'—')},{h:'المصدر',f:r=>esc(r.source)},{h:'المسؤول',f:r=>esc((byId(S.users,r.assignedTo)||{}).name||'—')},{h:'الحالة',f:r=>tagOf(r.status)}], leads)}
+  <h2>أوامر الشغل (Sales Orders) — ${S.orders.length}</h2>${tableHtml([{h:'رقم',f:r=>`<span class="mono">${r.id}</span>`},{h:'التاريخ',f:r=>r.date},{h:'العميل',f:r=>esc(customerName(r.customerId))},{h:'من عرض',f:r=>`<span class="mono">${r.quotationId}</span>`},{h:'القيمة',num:true,f:r=>fmtN(r.total)},{h:'الحالة',f:r=>tagOf(r.status)}], S.orders)}`;
+};
+R.products = () => `<div class="callout">قائمة الأسعار دي هي اللي الـAI Sales Agent بيستخدمها لعمل التسعير المبدئي لعرض السعر (قبل اعتماد مدير التسعير). في النسخة الحقيقية هتيجي من النظام المحاسبي.</div>
+  ${tableHtml([{h:'كود',f:r=>`<span class="mono">${r.id}</span>`},{h:'الخدمة',f:r=>esc(r.name)},{h:'التصنيف',f:r=>esc(r.cat)},{h:'الوحدة',f:r=>esc(r.unit)},{h:'السعر',num:true,f:r=>fmtN(r.price)},{h:'ضريبة',num:true,f:r=>r.vat+'%'},{h:'كلمات يفهمها المحرك',f:r=>`<span class="small t2">${esc(r.keys.join('، ')||'(بالقطر: 150 / 200)')}</span>`}], PRODUCTS)}`;
+
+/* ================= AUDIT ================= */
+R.audit = () => {
+  const q = q_('q-aud'); const rows = S.audit.filter(a => !q || norm(a.actor+' '+a.action+' '+a.entity+' '+a.entityId+' '+a.details).includes(q));
+  return `<div class="toolbar">${searchBox('q-aud','ابحث في السجل')}<span class="muted small">${rows.length} عملية</span><span style="flex:1"></span><button class="btn sm" id="exp-audit">⬇️ تصدير CSV</button></div>
+  ${tableHtml([{h:'الوقت',f:r=>`<span class="mono small">${fmtDate(r.ts)} ${fmtTime(r.ts)}</span>`},{h:'الفاعل',f:r=>esc(r.actor)},{h:'العملية',f:r=>`<span class="tag">${esc(r.action)}</span>`},{h:'الكيان',f:r=>esc(r.entity)},{h:'المعرّف',f:r=>`<span class="mono">${esc(r.entityId)}</span>`},{h:'التفاصيل',f:r=>`<span class="small">${esc(r.details)}</span>`}], rows.slice(0,300))}`;
+};
+AFTER.audit = () => { hook('q-aud'); $('#exp-audit').onclick = () => downloadText('hesabo_audit_log.csv', '﻿' + toCSV(S.audit.map(a=>({time:a.ts, actor:a.actor, action:a.action, entity:a.entity, id:a.entityId, details:a.details})))); };
+function toCSV(rows){ if (!rows.length) return ''; const cols = Object.keys(rows[0]); const q = v => '"' + String(v??'').replace(/"/g,'""') + '"'; return cols.join(',') + '\n' + rows.map(r => cols.map(c=>q(r[c])).join(',')).join('\n'); }
+
+/* ================= DRAWER ================= */
+function openDrawer(html){ closeDrawer(); const d = document.createElement('div'); d.className='drawer'; d.id='drawer'; d.innerHTML = `<div class="panel"><div class="row" style="justify-content:space-between"><span></span><button class="btn sm" id="drawer-close">إغلاق ✕</button></div>${html}</div>`; document.body.appendChild(d); d.onclick = e => { if (e.target===d) closeDrawer(); }; $('#drawer-close').onclick = closeDrawer; $$('button[data-chat-as]', d).forEach(b => b.onclick = () => { UI.chat.phone = b.dataset.chatAs; UI.chat.trace=null; closeDrawer(); go('chat'); }); }
+function closeDrawer(){ const d = $('#drawer'); if (d) d.remove(); }
+</script>
+<script>
+/* =====================================================================
+   HESABO Simulator — Part 4: scenarios, test runner, KPIs, guide,
+   settings, boot
+   ===================================================================== */
+/* role codes: c=customer s=sales a=accountant m=admin u=unknown */
+const SCENARIOS = [
+  // ---- customer: balance ----
+  ['c','عليا كام؟','CUSTOMER_BALANCE'],['c','محتاج أعرف رصيدي','CUSTOMER_BALANCE'],['c','كام المتبقي عليا؟','CUSTOMER_BALANCE'],['c','ايه اللي باقي عليا لكم','CUSTOMER_BALANCE'],['c','حسابي كام عندكم','CUSTOMER_BALANCE'],['c','What is my outstanding balance?','CUSTOMER_BALANCE'],['c','كام فاضل عليا','CUSTOMER_BALANCE'],['c','كم المبلغ الباقي علي؟','CUSTOMER_BALANCE'],['c','رصيد حسابي','CUSTOMER_BALANCE'],['c','السلام عليكم، عليا كام دلوقتي؟','CUSTOMER_BALANCE'],
+  // ---- customer: invoices ----
+  ['c','هات آخر فاتورة','LAST_INVOICE'],['c','ابعتلي اخر فاتوره لو سمحت','LAST_INVOICE'],['c','ابعتلي الفاتورة الاخيرة PDF','LAST_INVOICE'],['c','ارسل لي آخر فاتورة','LAST_INVOICE'],
+  ['c','الفاتورة 1490 اتدفعت؟','INVOICE_STATUS'],['c','فاتورة رقم 1450 حالتها ايه','INVOICE_STATUS'],['c','INV-1300 status?','INVOICE_STATUS'],['c','الفاتورة دي مدفوعة ولا لسه؟','INVOICE_STATUS'],['c','الفاتورة 1490 اتدفعت ولا لسه؟','INVOICE_STATUS'],['c','الفاتورة 1490','INVOICE_STATUS'],
+  ['c','ما هو موعد استحقاق الفاتورة؟','INVOICE_DUE_DATE'],['c','الفاتورة 1495 تستحق امتى','INVOICE_DUE_DATE'],['c','امتى اخر ميعاد للدفع','INVOICE_DUE_DATE'],['c','متى تاريخ استحقاق فاتورة 1499','INVOICE_DUE_DATE'],['c','حسابي متى يستحق','INVOICE_DUE_DATE'],
+  ['c','فواتيري المفتوحة','LIST_INVOICES'],['c','هات كل الفواتير اللي عليا','LIST_INVOICES'],['c','عندي فواتير ايه غير مدفوعة','LIST_INVOICES'],['c','كم صار علي من فواتير؟','LIST_INVOICES'],
+  // ---- customer: statement / payments ----
+  ['c','ابعت كشف الحساب','STATEMENT'],['c','محتاج كشف حساب من اول السنة','STATEMENT'],['c','Please send my account statement','STATEMENT'],['c','أبي كشف حساب','STATEMENT'],
+  ['c','آخر دفعة دفعتها امتى؟','PAYMENT_SEARCH'],['c','دفعت كام لحد دلوقتي','PAYMENT_SEARCH'],['c','هات المدفوعات بتاعتي','PAYMENT_SEARCH'],
+  ['c','حولت 5000 ريال تحويل بنكي','RECORD_PAYMENT'],['c','سجل دفعة 12000 على الفاتورة 1480','RECORD_PAYMENT'],['c','دفعتلكم 7500 النهارده كاش','RECORD_PAYMENT'],['c','تم التحويل 20 الف على حسابكم','RECORD_PAYMENT'],['c','سددت 3000 ريال اليوم','RECORD_PAYMENT'],
+  // ---- customer: quotations ----
+  ['c','عايز عرض سعر لـ20 متر قص خرسانة','CREATE_QUOTATION'],['c','محتاج قص خرسانة','CREATE_QUOTATION'],['c','بكام متر القص عندكم؟','CREATE_QUOTATION'],['c','ممكن تسعير لـ50 نقطة كور 150 مم في جدة','CREATE_QUOTATION'],['c','اعمللي عرض سعر','CREATE_QUOTATION'],['c','I need a quotation for 300 m2 GPR scanning in Riyadh','CREATE_QUOTATION'],['c','ابغى عرض سعر لكور 200 مم 30 نقطة','CREATE_QUOTATION'],['c','عندنا شغل هدم خرسانة في الدمام','CREATE_QUOTATION'],
+  ['c','فين عرض السعر بتاعي؟','QUOTATION_STATUS'],['c','عرض السعر رقم 2050 اتقبل؟','QUOTATION_STATUS'],['c','العرض اتبعت ولا لسه','QUOTATION_STATUS'],['c','وش صار على عرض السعر؟','QUOTATION_STATUS'],
+  // ---- customer: small talk / control ----
+  ['c','السلام عليكم','GREETING'],['c','صباح الخير','GREETING'],['c','ازيك يا باشا','GREETING'],['c','شكرا جزيلا','THANKS'],['c','مساعدة','HELP'],['c','تقدر تعمل ايه؟','HELP'],['c','الغي الطلب','CANCEL'],['c','كنسل','CANCEL'],['c','ايوه','CONFIRM'],['c','تمام','CONFIRM'],['c','ok','CONFIRM'],['c','لا مش صح','DENY'],
+  ['c','الجو حر النهاردة','UNKNOWN'],['c','عايز اكلم حد من الشركة','UNKNOWN'],['c','ممكن اعرف رقم الايبان عشان احول','UNKNOWN'],
+  // ---- sales ----
+  ['s','بيانات شركة النخيل','CUSTOMER_SEARCH'],['s','هات رقم تليفون شركة الأفق','CUSTOMER_SEARCH'],['s','ابحث عن عميل اسمه فهد الشهري','CUSTOMER_SEARCH'],['s','مين المندوب بتاع شركة الأفق','CUSTOMER_SEARCH'],['s','رقم جوال المسؤول في شركة البناء الحديث','CUSTOMER_SEARCH'],['s','بيانات عميل رقم C-005','CUSTOMER_SEARCH'],
+  ['s','رصيد شركة النخيل','CUSTOMER_BALANCE'],['s','شركة الرواد عليها كام','CUSTOMER_BALANCE'],['s','رصيد الرواد كام','CUSTOMER_BALANCE'],
+  ['s','ضيف عميل جديد','CREATE_CUSTOMER'],['s','سجل عميل جديد شركة الصفا اسم المسؤول محمد جوال 0551234567','CREATE_CUSTOMER'],['s','add new customer','CREATE_CUSTOMER'],['s','ضيف عميل جديد شركة الصقر','CREATE_CUSTOMER'],
+  ['s','هاتلي كل عروض الأسعار المفتوحة','OPEN_QUOTATIONS'],['s','ايه العروض اللي لسه منتظرة رد','OPEN_QUOTATIONS'],
+  ['s','اعمل متابعة للعملاء اللي ما ردوش على عروض الأسعار','FOLLOW_UP'],['s','ابعت تذكير للعملاء اللي ما ردوش','FOLLOW_UP'],
+  ['s','تقرير المبيعات هذا الأسبوع','SALES_REPORT'],['s','جهزلي تقرير المبيعات الشهر ده','SALES_REPORT'],['s','بعنا كام الاسبوع ده','SALES_REPORT'],['s','sales report for this month','SALES_REPORT'],
+  ['s','اعمل عرض سعر لشركة الرواد 50 نقطة كور 150 مم في جدة','CREATE_QUOTATION'],['s','اعمل عرض سعر لشركة النخيل 200 متر قص أرضيات','CREATE_QUOTATION'],
+  ['s','سجل ليد جديد اسمه ياسر جوال 0509998887 محتاج مسح GPR في الدمام','CREATE_LEAD'],['s','عميل مهتم بحقن شروخ في الرياض سجله','CREATE_LEAD'],
+  ['s','حالة عرض السعر 2100','QUOTATION_STATUS'],['s','هات آخر فاتورة لشركة النخيل','LAST_INVOICE'],
+  // ---- accountant ----
+  ['a','مين عليه فلوس أكتر من 30 يوم؟','WHO_OWES'],['a','مين لسه ما دفعش','WHO_OWES'],['a','هات المتأخرين في السداد','WHO_OWES'],['a','overdue customers list','WHO_OWES'],['a','ايه الفواتير اللي عدت الاستحقاق','WHO_OWES'],['a','العملاء اللي عليهم فلوس','WHO_OWES'],['a','الديون المتأخرة','WHO_OWES'],
+  ['a','كشف حساب شركة الأفق','STATEMENT'],['a','كشف حساب الرواد','STATEMENT'],['a','الفاتورة 1495 اتدفعت؟','INVOICE_STATUS'],
+  ['a','سجل دفعة 12000 ريال تحويل لشركة النخيل','RECORD_PAYMENT'],['a','حولت الأفق 15000 على فاتورة 1470','RECORD_PAYMENT'],
+  ['a','اعمل فاتورة لشركة الرواد بـ50,000','CREATE_INVOICE'],['a','اصدر فاتورة جديدة لشركة البناء الحديث','CREATE_INVOICE'],['a','اعمل فاتورة لشركة الأفق بـ80,000','CREATE_INVOICE'],
+  ['a','فواتير شركة البناء الحديث المفتوحة','LIST_INVOICES'],['a','مدفوعات شركة النخيل','PAYMENT_SEARCH'],['a','آخر دفعة من الأفق','PAYMENT_SEARCH'],
+  // ---- admin ----
+  ['m','تقرير المبيعات الشهر ده','SALES_REPORT'],['m','مين عليه فلوس أكتر من 60 يوم؟','WHO_OWES'],['m','هاتلي كل عروض الأسعار المفتوحة','OPEN_QUOTATIONS'],['m','اعمل متابعة للعملاء اللي ما ردوش','FOLLOW_UP'],
+  // ---- unknown number ----
+  ['u','السلام عليكم','GREETING'],['u','محتاج قص خرسانة','CREATE_QUOTATION'],['u','عايز عرض سعر لـ100 م² مسح GPR في جدة','CREATE_QUOTATION'],['u','عليا كام؟','CUSTOMER_BALANCE'],['u','مساعدة','HELP'],
+];
+const ROLE_CODE = { c:'customer', s:'sales', a:'accountant', m:'admin', u:'unknown' };
+function stubActor(code){ const role = ROLE_CODE[code]; if (role==='customer') return { role, name:S.customers[0].name, id:S.customers[0].id, phone:S.customers[0].phone, customer:S.customers[0] }; if (role==='unknown') return { role, name:'رقم غير معروف', id:null, phone:'+966512345678' }; const u = S.users.find(x=>x.role===role); return { role, name:u.name, id:u.id, phone:u.phone, user:u }; }
+
+async function runTests(engine, limit){
+  const T = UI.tests; T.running = true; T.stop = false; T.progress = 0;
+  const list = limit ? SCENARIOS.slice(0, limit) : SCENARIOS; const rows = [];
+  for (let i=0;i<list.length;i++){
+    if (T.stop) break;
+    const [code, text, expected] = list[i]; const actor = stubActor(code);
+    let got='', conf=0, eng=engine, err='';
+    try {
+      if (engine==='ai'){ if (!AI.sample) throw {code:'unavailable'}; const r = await aiNLU(text, actor, null, []); got = r.intent; conf = r.confidence; }
+      else { const r = ruleNLU(text, null); got = r.intent; conf = r.confidence; }
+    } catch(e){ err = (e && e.code) || 'error'; got = 'ERROR'; if (err==='not_granted'||err==='sampling_disabled'||err==='unavailable'){ toast('الـAI غير متاح — الاختبار اتوقف'); T.stop = true; } }
+    rows.push({ i:i+1, role:ROLE_CODE[code], text, expected, got, ok: got===expected, conf, err });
+    T.progress = Math.round((i+1)/list.length*100);
+    const p = $('#test-prog i'); if (p) p.style.width = T.progress+'%'; const pt = $('#test-prog-txt'); if (pt) pt.textContent = `${i+1} / ${list.length} — نجاح ${rows.filter(r=>r.ok).length}`;
+    if (engine==='ai') await sleep(250);
+  }
+  T.running = false;
+  S.testResults = { engine, at:new Date().toISOString(), total:rows.length, passed:rows.filter(r=>r.ok).length, rows }; save();
+  render();
+}
+R.tests = () => {
+  const T = UI.tests; const res = S.testResults;
+  const byRole = {}; SCENARIOS.forEach(s => byRole[ROLE_CODE[s[0]]] = (byRole[ROLE_CODE[s[0]]]||0)+1);
+  let out = `<div class="card"><div class="card-h"><h3>بنك السيناريوهات — ${SCENARIOS.length} رسالة اختبار</h3><span class="small t2">${Object.entries(byRole).map(([r,n])=>`${ROLES[r].label}: ${n}`).join(' · ')}</span></div>
+    <p class="t2 small" style="margin-bottom:10px">كل سيناريو = رسالة زي ما العميل أو الموظف بيكتبها فعلاً (عامية مصرية/خليجية/إنجليزي) + النية الصحيحة المتوقعة. الاختبار بيقيس <b>AI Accuracy</b> (هل المحرك فهم النية صح؟) وده أول KPI في الـBrief (الهدف 90%+).</p>
+    <div class="row">
+      <button class="btn primary" id="run-rules" ${T.running?'disabled':''}>▶ شغّل بمحرك القواعد (فوري)</button>
+      <button class="btn" id="run-ai" ${T.running||AI.status!=='ready'?'disabled':''} title="${AI.status!=='ready'?'الـAI غير متاح في هذا العرض':''}">▶ شغّل بـClaude AI (كل السيناريوهات)</button>
+      <button class="btn" id="run-ai-25" ${T.running||AI.status!=='ready'?'disabled':''}>▶ Claude AI — أول 30 بس</button>
+      ${T.running?`<button class="btn danger" id="stop-tests">⏹ إيقاف</button>`:''}
+      <span style="flex:1"></span>
+      ${res?`<button class="btn sm" id="exp-tests">⬇️ تصدير النتائج CSV</button>`:''}
+    </div>
+    ${T.running?`<div style="margin-top:10px"><div class="prog" id="test-prog"><i style="width:${T.progress}%"></i></div><div class="small t2" id="test-prog-txt" style="margin-top:4px">جاري التشغيل…</div></div>`:''}
+    <p class="small muted" style="margin-top:8px">ملاحظة: تشغيل الـAI الحقيقي بيستهلك من استخدامك في Claude (رسالة واحدة لكل سيناريو) وبياخد حوالي ثانية–ثانيتين لكل رسالة.</p>
+  </div>`;
+  if (res){
+    const acc = Math.round(res.passed/res.total*100);
+    const perRole = {}; res.rows.forEach(r => { perRole[r.role] = perRole[r.role]||{n:0,ok:0}; perRole[r.role].n++; if (r.ok) perRole[r.role].ok++; });
+    const perIntent = {}; res.rows.forEach(r => { perIntent[r.expected] = perIntent[r.expected]||{n:0,ok:0}; perIntent[r.expected].n++; if (r.ok) perIntent[r.expected].ok++; });
+    const fails = res.rows.filter(r=>!r.ok);
+    out += `<div class="grid c4">
+      <div class="stat"><div class="lbl">AI Accuracy — ${res.engine==='ai'?'Claude AI':'محرك القواعد'}</div><div class="val num" style="color:${acc>=90?'var(--good-ink)':acc>=75?'#7a5200':'var(--crit)'}">${acc}%</div><div class="sub">${res.passed} / ${res.total} — الهدف 90%+ ${acc>=90?'✅':'❌'}</div></div>
+      ${Object.entries(perRole).map(([r,v])=>`<div class="stat"><div class="lbl">${ROLES[r].label}</div><div class="val num">${Math.round(v.ok/v.n*100)}%</div><div class="sub">${v.ok}/${v.n}</div></div>`).join('')}
+    </div>
+    <div class="grid c2">
+      <div class="card"><div class="card-h"><h3>الدقة حسب النية</h3></div>${tableHtml([{h:'النية',f:r=>`<span class="mono small">${r.k}</span> <span class="small t2">${INTENTS[r.k]?INTENTS[r.k].ar:''}</span>`},{h:'عدد',num:true,f:r=>r.v.n},{h:'صح',num:true,f:r=>r.v.ok},{h:'الدقة',num:true,f:r=>`<span class="${r.v.ok===r.v.n?'res-ok':'res-bad'}">${Math.round(r.v.ok/r.v.n*100)}%</span>`}], Object.entries(perIntent).map(([k,v])=>({k,v})).sort((a,b)=>b.v.n-a.v.n))}</div>
+      <div class="card"><div class="card-h"><h3>السيناريوهات اللي فشلت (${fails.length})</h3></div>${fails.length?tableHtml([{h:'#',f:r=>r.i},{h:'الدور',f:r=>ROLES[r.role].label},{h:'الرسالة',f:r=>esc(r.text)},{h:'المتوقع',f:r=>`<span class="mono small">${r.expected}</span>`},{h:'النتيجة',f:r=>`<span class="mono small res-bad">${esc(r.got)}${r.err?' ('+r.err+')':''}</span>`}], fails):'<div class="empty">كل السيناريوهات نجحت 🎉</div>'}</div>
+    </div>
+    <div class="card"><div class="card-h"><h3>كل النتائج</h3><span class="small muted">${fmtDateAr(res.at)} ${fmtTime(res.at)}</span></div>${tableHtml([{h:'#',f:r=>r.i},{h:'الدور',f:r=>ROLES[r.role].label},{h:'الرسالة',f:r=>esc(r.text)},{h:'المتوقع',f:r=>`<span class="mono small">${r.expected}</span>`},{h:'النتيجة',f:r=>`<span class="mono small ${r.ok?'res-ok':'res-bad'}">${esc(r.got)}</span>`},{h:'ثقة',num:true,f:r=>Math.round(r.conf*100)+'%'},{h:'',f:r=>r.ok?'✅':'❌'}], res.rows)}</div>`;
+  } else {
+    out += `<div class="card"><h3 style="margin-bottom:8px">أمثلة من السيناريوهات</h3>${tableHtml([{h:'#',f:r=>r.i},{h:'الدور',f:r=>ROLES[ROLE_CODE[r.s[0]]].label},{h:'الرسالة',f:r=>esc(r.s[1])},{h:'النية المتوقعة',f:r=>`<span class="mono small">${r.s[2]}</span> <span class="small t2">${INTENTS[r.s[2]].ar}</span>`}], SCENARIOS.map((s,i)=>({s,i:i+1})))}</div>`;
+  }
+  return out;
+};
+AFTER.tests = () => {
+  const b1=$('#run-rules'); if (b1) b1.onclick = () => { runTests('rules'); render(); };
+  const b2=$('#run-ai'); if (b2) b2.onclick = () => { runTests('ai'); render(); };
+  const b3=$('#run-ai-25'); if (b3) b3.onclick = () => { runTests('ai', 30); render(); };
+  const b4=$('#stop-tests'); if (b4) b4.onclick = () => { UI.tests.stop = true; };
+  const b5=$('#exp-tests'); if (b5) b5.onclick = () => downloadText('hesabo_test_results.csv', '﻿' + toCSV(S.testResults.rows.map(r=>({n:r.i, role:r.role, message:r.text, expected:r.expected, result:r.got, pass:r.ok?'PASS':'FAIL', confidence:r.conf, engine:S.testResults.engine}))));
+};
+
+/* ================= KPI ================= */
+R.kpi = () => {
+  const reqs = S.requests; const n = reqs.length;
+  const ok = reqs.filter(r=>r.success).length, den = reqs.filter(r=>r.denied).length, ho = reqs.filter(r=>r.handoff).length, ai = reqs.filter(r=>r.engine==='ai').length;
+  const avgLat = n ? Math.round(sum(reqs,r=>r.latency)/n) : 0; const outMsgs = sum(reqs,r=>r.outMsgs);
+  const cost = outMsgs*S.settings.msgCost + ai*S.settings.aiCost; const saved = ok*S.settings.manualMinutes;
+  const res = S.testResults; const acc = res ? Math.round(res.passed/res.total*100) : null;
+  const perIntent = {}; reqs.forEach(r => { perIntent[r.intent] = perIntent[r.intent]||{n:0,ok:0,ho:0,lat:0}; const x=perIntent[r.intent]; x.n++; if (r.success) x.ok++; if (r.handoff) x.ho++; x.lat+=r.latency; });
+  const target = (label, val, goal, good, note) => `<tr><td>${label}</td><td class="num"><b>${val}</b></td><td class="num">${goal}</td><td>${good===null?'<span class="tag">يُقاس يدوياً</span>':good?'<span class="tag good">✅ محقق</span>':'<span class="tag crit">❌ لسه</span>'}</td><td class="small t2">${note}</td></tr>`;
+  return `<div class="callout">دي مؤشرات الـMVP اللي في الـBrief (قسم 15). بتتحسب من كل الرسائل اللي اتبعتت في المحاكي + آخر تشغيل لاختبار السيناريوهات. الهدف إنك قبل ما تدفع أي تكلفة حقيقية تعرف بالأرقام: هل الـAI فاهم؟ هل الـWorkflow شغال؟ التكلفة كام؟</div>
+  <div class="grid c4">
+    <div class="stat"><div class="lbl">إجمالي الطلبات</div><div class="val num">${n}</div><div class="sub">${Object.values(S.conversations).filter(c=>c.messages.length).length} محادثة</div></div>
+    <div class="stat"><div class="lbl">Successful Requests</div><div class="val num" style="color:var(--good-ink)">${n?Math.round(ok/n*100):0}%</div><div class="sub">${ok} ناجح · ${den} مرفوض صلاحيات · ${n-ok-den} غير مفهوم</div></div>
+    <div class="stat"><div class="lbl">Human Intervention</div><div class="val num">${n?Math.round(ho/n*100):0}%</div><div class="sub">${ho} تحويل بشري · ${S.approvals.length} طلب اعتماد</div></div>
+    <div class="stat"><div class="lbl">Response Time</div><div class="val num">${avgLat}<span style="font-size:12px"> ms</span></div><div class="sub">${ai} طلب بالـAI · ${n-ai} بالقواعد</div></div>
+    <div class="stat"><div class="lbl">Cost per Request (تقديري)</div><div class="val num">${n?fmtN(cost/n,2):'0.00'}</div><div class="sub">إجمالي ${fmtN(cost,2)} ريال · ${outMsgs} رسالة صادرة</div></div>
+    <div class="stat"><div class="lbl">Time Saved (تقديري)</div><div class="val num">${fmtN(saved/60,1)}<span style="font-size:12px"> ساعة</span></div><div class="sub">${ok} طلب × ${S.settings.manualMinutes} دقيقة يدوي</div></div>
+    <div class="stat"><div class="lbl">AI Accuracy (آخر اختبار)</div><div class="val num" style="color:${acc===null?'inherit':acc>=90?'var(--good-ink)':'var(--crit)'}">${acc===null?'—':acc+'%'}</div><div class="sub">${res?`${res.passed}/${res.total} — ${res.engine==='ai'?'Claude':'قواعد'}`:'شغّل اختبار السيناريوهات'}</div></div>
+    <div class="stat"><div class="lbl">AI Fallbacks</div><div class="val num">${AI.fails}</div><div class="sub">${AI.calls} استدعاء AI في الجلسة${AI.lastError?' · آخر خطأ: '+AI.lastError:''}</div></div>
+  </div>
+  <div class="card"><div class="card-h"><h3>أهداف الانتقال للـProduction (Brief §15–16)</h3></div><div class="table-wrap"><table><thead><tr><th>المؤشر</th><th class="num">الحالي</th><th class="num">الهدف</th><th>الحالة</th><th>ملاحظة</th></tr></thead><tbody>
+    ${target('AI Accuracy (فهم النية)', acc===null?'—':acc+'%', '≥ 90%', acc===null?false:acc>=90, 'من اختبار السيناريوهات')}
+    ${target('نجاح الاستفسارات البسيطة', (n?Math.round(ok/n*100):0)+'%', '≥ 90%', n>=20 ? ok/n>=0.9 : false, n<20?'محتاج 20 طلب على الأقل عشان الرقم يبقى له معنى':'')}
+    ${target('دقة قراءة البيانات (Transaction Accuracy)', '—', '≥ 95%', null, 'قارن رد الواتساب بشاشة الفواتير/المدفوعات وسجّل الأخطاء يدوياً')}
+    ${target('التدخل البشري', (n?Math.round(ho/n*100):0)+'%', '≤ 10%', n>=20 ? ho/n<=0.1 : false, '')}
+    ${target('زمن الرد', avgLat+' ms', '< 5000 ms', n ? avgLat<5000 : false, 'في الإنتاج يضاف زمن WhatsApp API والنظام المحاسبي')}
+    ${target('شركات مستعدة للتجربة', '—', '3 – 5', null, 'قرار تجاري — من دورك بعد نجاح المحاكاة')}
+  </tbody></table></div></div>
+  <div class="card"><div class="card-h"><h3>حسب النية</h3></div>${n?tableHtml([{h:'النية',f:r=>`<span class="mono small">${r.k}</span> <span class="small t2">${INTENTS[r.k]?INTENTS[r.k].ar:''}</span>`},{h:'طلبات',num:true,f:r=>r.v.n},{h:'ناجح',num:true,f:r=>r.v.ok},{h:'تحويل بشري',num:true,f:r=>r.v.ho},{h:'متوسط الزمن',num:true,f:r=>Math.round(r.v.lat/r.v.n)+' ms'}], Object.entries(perIntent).map(([k,v])=>({k,v})).sort((a,b)=>b.v.n-a.v.n)):'<div class="empty">لسه مفيش طلبات</div>'}</div>
+  <div class="card"><div class="card-h"><h3>سجل الطلبات (Request Log)</h3><span style="flex:1"></span><button class="btn sm" id="exp-req">⬇️ تصدير CSV</button></div>${tableHtml([{h:'الوقت',f:r=>`<span class="mono small">${fmtTime(r.ts)}</span>`},{h:'المرسل',f:r=>`${esc(r.actor)} <span class="tag">${ROLES[r.role].label}</span>`},{h:'الرسالة',f:r=>esc(r.text.slice(0,60))},{h:'النية',f:r=>`<span class="mono small">${r.intent}</span>`},{h:'المحرك',f:r=>r.engine==='ai'?'<span class="tag info">AI</span>':'<span class="tag">قواعد</span>'},{h:'ثقة',num:true,f:r=>Math.round(r.confidence*100)+'%'},{h:'النتيجة',f:r=>r.success?'<span class="tag good">ناجح</span>':r.denied?'<span class="tag warn">صلاحيات</span>':'<span class="tag crit">غير مفهوم</span>'},{h:'زمن',num:true,f:r=>r.latency+' ms'}], reqs.slice(0,200))}</div>`;
+};
+AFTER.kpi = () => { const b=$('#exp-req'); if (b) b.onclick = () => downloadText('hesabo_requests.csv', '﻿' + toCSV(S.requests.map(r=>({time:r.ts, actor:r.actor, role:r.role, message:r.text, intent:r.intent, engine:r.engine, confidence:r.confidence, success:r.success, denied:r.denied, handoff:r.handoff, latency_ms:r.latency, out_messages:r.outMsgs})))); };
+
+/* ================= GUIDE ================= */
+R.guide = () => `
+<div class="grid c2" style="align-items:start">
+<div class="card prose">
+  <h2>إيه اللي انت شايفه دلوقتي؟</h2>
+  <p>ده <b>سيمولاتور كامل</b> لمشروع "AI WhatsApp Accounting Automation" زي ما هو في الـBrief، بس كل حاجة فيه افتراضية: العملاء والفواتير والمدفوعات وعروض الأسعار اتولّدت تلقائياً (100 عميل، 500 فاتورة، مئات المدفوعات، 120 عرض سعر) عشان تقدر تجرب النظام كأنه شغال على شركة حقيقية من غير ما تدفع ريال أو تربط أي حاجة.</p>
+  <p>المسار اللي بيحصل مع كل رسالة هو نفسه اللي هيحصل في الإنتاج:</p>
+  <div class="flow"><span>WhatsApp</span><em>→</em><span>تحديد المرسل</span><em>→</em><span>AI Intent</span><em>→</em><span>RBAC</span><em>→</em><span>Business Logic</span><em>→</em><span>Accounting DB</span><em>→</em><span>Approval؟</span><em>→</em><span>Reply</span></div>
+  <p>الـAI هنا مسؤول عن حاجة واحدة بس: <b>يفهم النية ويطلّع البيانات من الرسالة</b>. الأرقام كلها بتيجي من قاعدة البيانات بالكود، والعمليات الحساسة (فاتورة / دفعة / عرض سعر) بتتعمل كمسودة وتستنى اعتماد بشري. ودي أهم قاعدة في الـBrief (قسم 3 و 12 و 32).</p>
+  <h3>محرك الـAI</h3>
+  <p>لو الشريط فوق أخضر، فالسيمولاتور بيستخدم <b>Claude فعلياً</b> لفهم كل رسالة (أول رسالة هتطلب منك موافقة مرة واحدة). ولو الـAI مش متاح أو اخترت "قواعد فقط"، بيشتغل محرك قواعد بيفهم الأنماط الشائعة بالعامية — نفس الفكرة بس بمرونة أقل. تقدر تبدّل بينهم من فوق شاشة المسار وتقارن الفرق.</p>
+  <h3>الأدوار والصلاحيات</h3>
+  <div class="table-wrap"><table><thead><tr><th>الدور</th><th>يقدر يعمل</th><th>ممنوع منه</th></tr></thead><tbody>
+    <tr><td><b>عميل</b></td><td>رصيده، فواتيره، مدفوعاته، كشف حسابه، الإبلاغ عن دفعة (بموافقة)، طلب عرض سعر ومتابعته</td><td>أي بيانات لعميل تاني، تقارير الشركة</td></tr>
+    <tr><td><b>مبيعات</b></td><td>بيانات العملاء ورصيدهم الإجمالي، إضافة عميل، Leads، عروض الأسعار ومتابعتها، تقرير المبيعات</td><td>تفاصيل الفواتير والمدفوعات، كشف الحساب، إصدار فواتير</td></tr>
+    <tr><td><b>محاسب</b></td><td>كل الفواتير والمدفوعات والكشوف، المتأخرين، تسجيل دفعة، إنشاء فاتورة (بموافقة)، اعتماد الدفعات</td><td>عروض الأسعار والـLeads</td></tr>
+    <tr><td><b>مدير (أنت)</b></td><td>كل حاجة + اعتماد عروض الأسعار (كمدير تسعير) والفواتير الكبيرة</td><td>—</td></tr>
+    <tr><td><b>رقم غير معروف</b></td><td>طلب عرض سعر (بيتحول لـLead تلقائياً)</td><td>أي بيانات — بيتحول لموظف</td></tr>
+  </tbody></table></div>
+</div>
+<div class="card prose">
+  <h2>جرّب السيناريو ده بالترتيب (10 دقايق)</h2>
+  <ol>
+    <li><b>كعميل (أحمد – شركة النخيل):</b> اكتب "عليا كام؟" ثم "هات آخر فاتورة" ثم "الفاتورة 1490 اتدفعت؟" — راقب مسار المعالجة وقارن الأرقام بشاشة الفواتير.</li>
+    <li>اكتب "حولت 5000 ريال تحويل بنكي" → هيسألك على الفاتورة → جاوب "أقدم فاتورة" → أكّد. لاحظ إن الدفعة <b>مااتسجلتش</b> لسه: اتعملت طلب اعتماد وراح إشعار للمحاسب.</li>
+    <li>روح لشاشة <b>الموافقات</b>، اختار "أحمد الشمري – محاسب" واعتمد الدفعة. ارجع للمحاكي: العميل وصله إشعار، والفاتورة اتحدثت في شاشة الفواتير، والعملية في سجل العمليات.</li>
+    <li>اكتب "عايز عرض سعر لـ20 متر قص خرسانة سمك 30 سم في الرياض" → أكّد → العرض اتسعّر تلقائياً من قائمة الأسعار وراح لك كمدير تسعير للاعتماد. اعتمده من الموافقات وشوف العرض بيوصل للعميل.</li>
+    <li>بدّل المرسل لـ<b>رقم غير معروف</b> واكتب "محتاج قص خرسانة" — هتشوف الـAI Sales Agent بيجمع البيانات ويعمل Lead.</li>
+    <li>بدّل لـ<b>خالد (مبيعات)</b>: "بيانات شركة النخيل" ثم "هات آخر فاتورة لشركة النخيل" — لاحظ الرفض بسبب الصلاحيات. ثم "اعمل متابعة للعملاء اللي ما ردوش" وشوف الرسائل اللي اتبعتت.</li>
+    <li>بدّل لـ<b>أحمد (محاسب)</b>: "مين عليه فلوس أكتر من 30 يوم؟" ثم "اعمل فاتورة لشركة الرواد بـ50,000".</li>
+    <li>اكتب أي حاجة غريبة زي "الجو حر النهاردة" → هتروح لـ<b>تدخل بشري</b> ورد عليها من هناك.</li>
+    <li>افتح <b>اختبار السيناريوهات</b> وشغّل الـ${SCENARIOS.length} سيناريو بالقواعد وبالـAI وقارن الدقة.</li>
+    <li>افتح <b>مؤشرات الأداء</b> و<b>لوحة المتابعة</b> عشان تشوف الأرقام اللي الـBrief طالبها.</li>
+  </ol>
+  <h3>إيه اللي محاكاة وإيه اللي حقيقي؟</h3>
+  <ul>
+    <li><b>حقيقي:</b> منطق الـWorkflow كله، الصلاحيات، الـFlows متعددة الخطوات، الموافقات، الإشعارات، السجلات، الـKPIs، وفهم النية بالـAI (لو متاح).</li>
+    <li><b>محاكاة:</b> واتساب نفسه (الشاشة دي بدل WhatsApp Business API)، النظام المحاسبي (قاعدة بيانات في المتصفح بدل البرنامج المحاسبي)، ملفات الـPDF (مجرد مرفق شكلي)، الأصوات والصور (مش موجودة في المرحلة دي).</li>
+    <li>البيانات بتتحفظ في متصفحك أنت بس. زرار "إعادة ضبط" في الإعدادات بيرجّع العالم الافتراضي زي ما كان.</li>
+  </ul>
+  <h3>دورك دلوقتي</h3>
+  <ul>
+    <li>جرّب كل الأدوار وسجّل: إيه الردود اللي عجبتك، إيه اللي ناقص، وإيه الرسائل اللي الـAI فهمها غلط (صدّر نتائج الاختبار CSV).</li>
+    <li>اكتب رسائل بأسلوب العملاء الحقيقيين (زي ما بيكتبوا فعلاً على الواتساب) — دي أهم مدخل للمرحلة الجاية.</li>
+    <li>قرّر قواعد الشغل: مين يعتمد إيه، حد الفاتورة اللي يحتاج موافقة، الخدمات وأسعارها المبدئية، شكل الردود.</li>
+    <li>حدد البرنامج المحاسبي المستهدف وهل ليه API — ده اللي هيحدد شكل الـIntegration في المرحلة 5.</li>
+  </ul>
+</div>
+</div>`;
+
+/* ================= SETTINGS ================= */
+R.settings = () => { const s = S.settings; const ap = s.approvals;
+  return `<div class="grid c2" style="align-items:start">
+  <div class="card"><h3 style="margin-bottom:10px">محرك الـAI</h3>
+    <div class="steps-list">
+      <label class="chk"><input type="radio" name="aimode" value="auto" ${s.aiMode==='auto'?'checked':''}> <span><b>تلقائي</b> — Claude لو متاح، وإلا محرك القواعد (موصى به)</span></label>
+      <label class="chk"><input type="radio" name="aimode" value="real" ${s.aiMode==='real'?'checked':''}> <span><b>Claude فقط</b> — لو فشل هيرجع للقواعد ويسجّل الفشل</span></label>
+      <label class="chk"><input type="radio" name="aimode" value="rules" ${s.aiMode==='rules'?'checked':''}> <span><b>قواعد فقط</b> — بدون أي استدعاء AI (أوفلاين)</span></label>
+    </div>
+    <p class="small muted" style="margin-top:8px">حالة الـAI: ${AI.status} · استدعاءات: ${AI.calls} · فشل: ${AI.fails}</p>
+    <h3 style="margin:16px 0 10px">الشركة</h3>
+    <div class="grid c2">
+      <div class="field"><label>اسم الشركة</label><input id="st-company" value="${esc(s.companyName)}"></div>
+      <div class="field"><label>اسم المساعد</label><input id="st-bot" value="${esc(s.botName)}"></div>
+      <div class="field"><label>العملة</label><input id="st-cur" value="${esc(s.currency)}"></div>
+      <div class="field"><label>أيام التأخر الافتراضية لـ"مين عليه فلوس"</label><input id="st-overdue" type="number" value="${s.overdueDays}"></div>
+    </div>
+    <h3 style="margin:16px 0 10px">المحاكاة والتكلفة</h3>
+    <div class="grid c2">
+      <div class="field"><label>تكلفة الرسالة الصادرة (ريال) — تقدير WhatsApp</label><input id="st-msgcost" type="number" step="0.01" value="${s.msgCost}"></div>
+      <div class="field"><label>تكلفة استدعاء AI (ريال)</label><input id="st-aicost" type="number" step="0.01" value="${s.aiCost}"></div>
+      <div class="field"><label>دقائق المعالجة اليدوية لكل طلب</label><input id="st-manual" type="number" value="${s.manualMinutes}"></div>
+      <div class="field"><label>تأخير "يكتب…" (ms)</label><input id="st-typing" type="number" value="${s.typingDelay}"></div>
+    </div>
+  </div>
+  <div class="card"><h3 style="margin-bottom:10px">العمليات اللي تحتاج اعتماد بشري</h3>
+    <div class="steps-list">
+      <label class="chk"><input type="checkbox" data-ap="CREATE_INVOICE" ${ap.CREATE_INVOICE?'checked':''}> إصدار فاتورة (يعتمدها المحاسب — أو المدير لو الطالب محاسب)</label>
+      <label class="chk"><input type="checkbox" data-ap="RECORD_PAYMENT" ${ap.RECORD_PAYMENT?'checked':''}> ترحيل دفعة (يعتمدها المحاسب)</label>
+      <label class="chk"><input type="checkbox" data-ap="SEND_QUOTATION" ${ap.SEND_QUOTATION?'checked':''}> إرسال عرض سعر بعد التسعير التلقائي (يعتمده المدير / مدير التسعير)</label>
+      <label class="chk"><input type="checkbox" data-ap="CREATE_CUSTOMER" ${ap.CREATE_CUSTOMER?'checked':''}> إضافة عميل جديد (يعتمده المدير)</label>
+    </div>
+    <div class="field" style="margin-top:10px"><label>حد الفاتورة اللي يحتاج اعتماد حتى لو الخيار متقفل (ريال)</label><input id="st-thr" type="number" value="${s.approvalThreshold}"></div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" id="st-save">💾 حفظ الإعدادات</button></div>
+    <h3 style="margin:20px 0 10px">البيانات</h3>
+    <div class="row">
+      <button class="btn" id="st-export">⬇️ تصدير كل البيانات (JSON)</button>
+      <button class="btn" id="st-clear-conv">🧹 مسح المحادثات والسجلات فقط</button>
+      <button class="btn danger" id="st-reset">↺ إعادة ضبط العالم الافتراضي بالكامل</button>
+    </div>
+    <p class="small muted" style="margin-top:8px">إعادة الضبط بترجّع نفس البيانات الأصلية (مولّد ثابت) وبتمسح كل اللي عملته.</p>
+  </div></div>`;
+};
+AFTER.settings = () => {
+  $('#st-save').onclick = () => { const s = S.settings; s.aiMode = ($('input[name=aimode]:checked')||{}).value||'auto'; s.companyName=$('#st-company').value; s.botName=$('#st-bot').value; s.currency=$('#st-cur').value; s.overdueDays=+$('#st-overdue').value||30; s.msgCost=+$('#st-msgcost').value||0; s.aiCost=+$('#st-aicost').value||0; s.manualMinutes=+$('#st-manual').value||0; s.typingDelay=+$('#st-typing').value||0; s.approvalThreshold=+$('#st-thr').value||0; $$('input[data-ap]').forEach(c => s.approvals[c.dataset.ap] = c.checked); save(); toast('تم الحفظ'); render(); };
+  $('#st-export').onclick = () => downloadText('hesabo_data.json', JSON.stringify(S, null, 1));
+  $('#st-clear-conv').onclick = () => { S.conversations = {}; S.requests = []; S.handoffs = []; S.testResults = null; UI.chat.trace=null; save(); toast('تم المسح'); render(); };
+  $('#st-reset').onclick = () => { if (!UI.confirmReset){ UI.confirmReset = true; toast('اضغط مرة تانية للتأكيد'); setTimeout(()=>UI.confirmReset=false, 4000); return; } resetAll(); UI.chat = { phone:null, trace:null, typing:false, busy:false }; toast('تمت إعادة الضبط'); render(); };
+};
+
+/* ================= BOOT ================= */
+load();
+$$('.nav-item').forEach(b => b.onclick = () => go(b.dataset.screen));
+window.addEventListener('hashchange', () => { const h = location.hash.replace('#',''); if (SCREENS[h] && h!==UI.screen){ UI.screen=h; render(); } });
+(function(){ const h = location.hash.replace('#',''); UI.screen = SCREENS[h] ? h : 'chat'; })();
+render();
+</script>
